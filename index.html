@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HPLC Report Generator</title>
+    <link rel="stylesheet" href="./styles.css?v=20260522f" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="panel form-panel">
+        <div class="app-header">
+          <div>
+            <h1>HPLC Report Generator</h1>
+            <p class="sub">Build the report once, then generate the lab pages and chromatograms automatically.</p>
+            <p class="build-note">Build 2026.05.22 F</p>
+          </div>
+          <div class="app-pill-row">
+            <span class="app-pill">1 report page</span>
+            <span class="app-pill">3 graphs per active</span>
+          </div>
+        </div>
+
+        <div class="editor-scroll">
+          <section class="section-card control-card">
+            <div class="section-head">
+              <h2>Workspace</h2>
+              <p>Presets, drafts, reuse, and export controls.</p>
+            </div>
+            <div class="form-grid cols-2">
+              <label>Template Preset
+                <select id="presetSelect" name="presetSelect">
+                  <option value="krishna">Krishna Style</option>
+                  <option value="roorkee">Roorkee Style</option>
+                  <option value="compact">Compact Style</option>
+                </select>
+              </label>
+              <label>Draft Name<input id="draftName" name="draftName" placeholder="Tickdown Soap May Batch" /></label>
+              <label>Saved Drafts
+                <select id="draftSelect">
+                  <option value="">No saved drafts</option>
+                </select>
+              </label>
+              <div class="control-actions">
+                <button id="saveDraftBtn" type="button" class="secondary-btn">Save Draft</button>
+                <button id="loadDraftBtn" type="button" class="secondary-btn">Load</button>
+                <button id="duplicateDraftBtn" type="button" class="secondary-btn">Duplicate</button>
+                <button id="reuseBatchBtn" type="button" class="secondary-btn">Reuse For Batch</button>
+                <button id="deleteDraftBtn" type="button" class="secondary-btn">Delete</button>
+              </div>
+              <label>Formula Name<input id="formulaName" name="formulaName" placeholder="Tickmac Soap 5% Formula" /></label>
+              <label>Saved Formulas
+                <select id="formulaSelect">
+                  <option value="">No saved formulas</option>
+                </select>
+              </label>
+              <div class="control-actions">
+                <button id="saveFormulaBtn" type="button" class="secondary-btn">Save Formula</button>
+                <button id="loadFormulaBtn" type="button" class="secondary-btn">Load Formula</button>
+                <button id="duplicateFormulaBtn" type="button" class="secondary-btn">Duplicate Formula</button>
+                <button id="deleteFormulaBtn" type="button" class="secondary-btn">Delete Formula</button>
+              </div>
+              <label>Export Mode
+                <select id="exportMode" name="exportMode">
+                  <option value="full">Full Report PDF</option>
+                  <option value="report">Report Page Only</option>
+                  <option value="graphs">Graph Pages Only</option>
+                </select>
+              </label>
+              <div class="validation-card">
+                <strong id="validationHeadline">Ready to validate</strong>
+                <ul id="validationList" class="validation-list"></ul>
+              </div>
+              <div class="bulk-card full-span">
+                <div class="section-head">
+                  <h2>Bulk Generation</h2>
+                  <p>Paste Excel rows here to create many reports from the current formula or current form.</p>
+                </div>
+                <label class="full-span">Bulk Rows
+                  <textarea id="bulkInput" rows="7" placeholder="reportNo	sampleName	batchNo	batchSize	sampleQty	receivedOn	refDate	analysisStartedDate	analysisCompletedDate&#10;SKL-0001	Tickmac Soap	BS-001	750 KG	75 G	2026-05-18	2026-05-17	2026-05-19	2026-05-22"></textarea>
+                </label>
+                <p class="bulk-help">Use tab-separated rows from Excel or comma-separated values. Optional per-active columns: <code>active1SampleFileNo</code>, <code>active1SampleRt</code>, <code>active1SampleArea</code>, <code>active1SampleHeight</code>.</p>
+                <div class="control-actions">
+                  <button id="generateBulkBtn" type="button" class="secondary-btn">Generate Bulk Preview</button>
+                  <button id="downloadBulkTemplateBtn" type="button" class="secondary-btn">Download Bulk Template</button>
+                  <button id="clearBulkBtn" type="button" class="secondary-btn">Clear Bulk</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <form id="reportForm" class="report-form">
+            <section class="section-card">
+              <div class="section-head">
+                <h2>Lab Setup</h2>
+                <p>Defaults used across every graph page.</p>
+              </div>
+              <div class="form-grid cols-2">
+                <label>Lab / Graph Header<input name="graphHeader" value="SHREE KRISHNA ANALYTICAL SERVICES PVT. LTD." /></label>
+                <label>Acquired By<input name="acquiredBy" value="Admin" /></label>
+                <label>HPLC Data Root<input name="hplcDataRoot" value="D:\Data" /></label>
+                <label>Detector Label<input name="detectorLabel" value="Detector A Ch1" /></label>
+                <label>Base Acquisition Time<input type="time" step="1" name="acquiredTime" value="15:30:01" /></label>
+                <label>Sequence Interval (min)<input type="number" step="1" min="1" name="sequenceIntervalMin" value="12" /></label>
+              </div>
+            </section>
+
+            <section class="section-card">
+              <div class="section-head">
+                <h2>Report Details</h2>
+                <p>Common values that appear on the report page and sample graph pages.</p>
+              </div>
+              <div class="form-grid cols-2">
+                <label>Report No.<input name="reportNo" required /></label>
+                <label>Sample / Product Name<input name="sampleName" required /></label>
+                <label>Submitted By<input name="submittedBy" required /></label>
+                <label>Batch No.<input name="batchNo" required /></label>
+                <label class="full-span">Address<textarea name="address" rows="2"></textarea></label>
+                <label>Manufactured By<input name="manufacturedBy" /></label>
+                <label>Supplied By<input name="suppliedBy" /></label>
+                <label>Mfg. Lic. No.<input name="mfgLicNo" /></label>
+                <label>Ref. No.<input name="refNo" /></label>
+                <label>Protocol Reference<input name="protocolReference" value="In House Specification" /></label>
+                <label>Description Result<input name="descriptionResult" value="Off white hard mass" /></label>
+                <label>Assay Result<input name="assayResult" value="--" /></label>
+              </div>
+            </section>
+
+            <section class="section-card">
+              <div class="section-head">
+                <h2>Dates & Batch</h2>
+                <p>These dates also drive the generated HPLC file path.</p>
+              </div>
+              <div class="form-grid cols-2">
+                <label>Received On<input type="date" name="receivedOn" required /></label>
+                <label>Ref. Date<input type="date" name="refDate" /></label>
+                <label>Analysis Started Date<input type="date" name="analysisStartedDate" /></label>
+                <label>Analysis Completed Date<input type="date" name="analysisCompletedDate" /></label>
+                <label>Mfg. Date<input name="mfgDate" placeholder="MM/YYYY" /></label>
+                <label>Exp. Date<input name="expDate" placeholder="MM/YYYY" /></label>
+                <label>Batch Size<input name="batchSize" placeholder="82.5 kg" /></label>
+                <label>Sample Qty.<input name="sampleQty" placeholder="75 g" /></label>
+              </div>
+            </section>
+          </form>
+
+          <section class="active-section">
+            <div class="active-header">
+              <div>
+                <h2>Active Ingredients</h2>
+                <p class="section-help">Each active creates a Blank, Standard, and Test graph set.</p>
+              </div>
+              <button id="addActiveBtn" type="button" class="secondary-btn">Add Active</button>
+            </div>
+            <div id="activeList" class="active-list"></div>
+          </section>
+        </div>
+
+        <div class="toolbar">
+          <div class="toolbar-copy">
+            <strong id="pageSummary">0 actives, 1 page</strong>
+            <span>Use Generate to refresh the preview, then print the final PDF.</span>
+          </div>
+          <div class="toolbar-actions">
+            <button id="generateBtn" type="button">Generate Pages</button>
+            <button id="printBtn" type="button" class="secondary-btn">Export Clean PDF</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel preview-panel">
+        <div class="preview-header">
+          <div>
+            <h2>Printable Preview</h2>
+            <p id="previewSummary" class="preview-note">Preview will appear here after generation.</p>
+          </div>
+        </div>
+        <div id="previewRoot" class="preview-pages"></div>
+      </section>
+    </main>
+
+    <template id="reportTemplate">
+      <article class="page a4">
+        <h2>Test Report</h2>
+        <div class="report-status" id="reportStatus"></div>
+        <table class="meta-table">
+          <tbody></tbody>
+        </table>
+        <h3>Results of Analysis</h3>
+        <table class="result-table">
+          <thead>
+            <tr>
+              <th>S.No.</th>
+              <th>Parameters/Test</th>
+              <th>Results/Observations</th>
+              <th>Limits/Specification</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <table class="composition-table">
+          <thead>
+            <tr>
+              <th>Composition</th>
+              <th>Results</th>
+              <th>Label Claim</th>
+              <th>Limits</th>
+              <th>Method</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </article>
+    </template>
+
+    <script src="./app.js?v=20260522f"></script>
+  </body>
+  </html>

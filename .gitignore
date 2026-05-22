@@ -1,0 +1,9 @@
+.portable-git/
+mingit.zip
+.deps/
+tmp_pdf/
+tmp_pdf2/
+embedded_bg.txt
+deploy_index.html
+README_DEPLOY.md
+assets/
