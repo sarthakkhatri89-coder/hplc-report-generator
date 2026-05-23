@@ -23,9 +23,6 @@ const validationList = document.getElementById("validationList");
 const defaultDocumentTitle = document.title;
 const BULK_ACTIVE_FIELD_MAP = {
   SampleFileNo: "sampleFileNo",
-  BlankRt: "blankRt",
-  BlankHeight: "blankHeight",
-  BlankArea: "blankArea",
   ReferenceRt: "referenceRt",
   ReferenceHeight: "referenceHeight",
   ReferenceArea: "referenceArea",
@@ -104,9 +101,6 @@ const BULK_ACTIVE_SUFFIX_LABELS = {
   LabelClaim: "Strength Claim",
   Limits: "Limits / Spec",
   Method: "Method",
-  BlankRt: "Blank RT",
-  BlankHeight: "Blank Height",
-  BlankArea: "Blank Area",
   ReferenceRt: "Standard RT",
   ReferenceHeight: "Standard Height",
   ReferenceArea: "Standard Area",
@@ -120,9 +114,6 @@ const BULK_ACTIVE_SUFFIX_ALIASES = {
   LabelClaim: ["label claim", "claim", "strength claim"],
   Limits: ["limits", "limit", "specification", "limits specification", "spec"],
   Method: ["method", "test method"],
-  BlankRt: ["blank rt", "blank retention time", "blank retain time"],
-  BlankHeight: ["blank height"],
-  BlankArea: ["blank area"],
   ReferenceRt: ["reference rt", "standard rt", "std rt", "reference retention time", "standard retention time"],
   ReferenceHeight: ["reference height", "standard height", "std height"],
   ReferenceArea: ["reference area", "standard area", "std area"],
@@ -1129,9 +1120,6 @@ function buildBulkTemplateColumns(activeCount) {
       `active${index}LabelClaim`,
       `active${index}Limits`,
       `active${index}Method`,
-      `active${index}BlankRt`,
-      `active${index}BlankHeight`,
-      `active${index}BlankArea`,
       `active${index}ReferenceRt`,
       `active${index}ReferenceHeight`,
       `active${index}ReferenceArea`,
@@ -1155,9 +1143,6 @@ function buildBulkTemplateRow(data) {
     row[`${prefix}LabelClaim`] = active.labelClaim ?? "";
     row[`${prefix}Limits`] = active.limits ?? "";
     row[`${prefix}Method`] = active.method ?? "";
-    row[`${prefix}BlankRt`] = active.blankRt ?? "";
-    row[`${prefix}BlankHeight`] = active.blankHeight ?? "";
-    row[`${prefix}BlankArea`] = active.blankArea ?? "";
     row[`${prefix}ReferenceRt`] = active.referenceRt ?? "";
     row[`${prefix}ReferenceHeight`] = active.referenceHeight ?? "";
     row[`${prefix}ReferenceArea`] = active.referenceArea ?? "";

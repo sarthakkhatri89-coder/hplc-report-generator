@@ -53,7 +53,7 @@
               <div class="bulk-card full-span">
                 <div class="section-head">
                   <h2>Bulk Generation</h2>
-                  <p>Paste or upload rows, map the columns, then generate many reports from the current form.</p>
+                  <p>Paste or upload rows, map the columns, then generate many reports from the current form. Multi-active products are supported with columns like <code>active1...</code>, <code>active2...</code>, and so on.</p>
                 </div>
                 <label class="full-span">Bulk Rows
                   <textarea id="bulkInput" rows="7" placeholder="reportNo	sampleName	batchNo	batchSize	sampleQty	receivedOn	refDate	analysisStartedDate	analysisCompletedDate&#10;SKL-0001	Tickmac Soap	BS-001	750 KG	75 G	2026-05-18	2026-05-17	2026-05-19	2026-05-22"></textarea>
@@ -62,7 +62,7 @@
                   <input id="bulkFileInput" type="file" accept=".csv,.xlsx,.xls" />
                 </label>
                 <p id="bulkFileStatus" class="bulk-file-status">No file loaded. You can paste rows or upload a sheet.</p>
-                <p class="bulk-help">Use tab-separated rows from Excel or comma-separated values. Optional per-active columns: <code>active1SampleFileNo</code>, <code>active1SampleRt</code>, <code>active1SampleArea</code>, <code>active1SampleHeight</code>.</p>
+                <p class="bulk-help">Use tab-separated rows from Excel or comma-separated values. Per-active bulk fields are for standard/test values only, like <code>active1SampleFileNo</code>, <code>active1ReferenceRt</code>, <code>active1ReferenceArea</code>, <code>active1SampleRt</code>, <code>active1SampleArea</code>. Blank graph values and lambda stay in the product setup, not in each bulk row.</p>
                 <div id="bulkMappingCard" class="bulk-mapping-card full-span" hidden>
                   <div class="section-head">
                     <h2>Bulk Column Mapping</h2>
