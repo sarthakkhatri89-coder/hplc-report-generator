@@ -556,6 +556,16 @@ button:hover {
   font-size: 0.76rem;
 }
 
+.auto-note {
+  border: 1px dashed #d7e5dd;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #f8fcfa;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
 .graph-fields {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

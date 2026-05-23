@@ -194,19 +194,9 @@ function createActiveCard(values = {}) {
       <section class="graph-group full-span">
         <div class="graph-group-head">
           <h4>Blank Graph</h4>
-          <p>Flat or noisy baseline used before the active peak.</p>
+          <p>Generated automatically from the active, wavelength, and method profile. No blank entry is required.</p>
         </div>
-        <div class="graph-fields">
-          <label>RT (min)<input type="number" step="0.001" name="blankRt" value="${escapeHtml(values.blankRt || "")}" /></label>
-          <label>Height<input type="number" step="0.01" name="blankHeight" value="${escapeHtml(values.blankHeight || "")}" /></label>
-          <label>Area<input type="number" step="0.01" name="blankArea" value="${escapeHtml(values.blankArea || "")}" /></label>
-        </div>
-        <div class="graph-group-head">
-          <h4>Editable Peak Rows</h4>
-          <p>Add extra blank peaks only if the chromatogram shows them.</p>
-        </div>
-        <div data-peak-editor="blank"></div>
-        <button type="button" class="secondary-btn" data-add-peak="blank">Add Blank Peak</button>
+        <div class="auto-note">Automatic blank baseline will vary slightly by method and active so it stays practical without manual blank inputs.</div>
       </section>
 
       <section class="graph-group full-span">
@@ -247,7 +237,6 @@ function createActiveCard(values = {}) {
     </div>
   `;
 
-  mountPeakEditor(card, "blank", values.blankExtraPeaks || "");
   mountPeakEditor(card, "reference", values.referenceExtraPeaks || "");
   mountPeakEditor(card, "sample", values.sampleExtraPeaks || "");
 
@@ -294,10 +283,6 @@ function collectActives() {
     calcResponseFactor: card.querySelector('[name="calcResponseFactor"]').value,
     calcClaimPercent: card.querySelector('[name="calcClaimPercent"]').value,
     useCalculatedResult: card.querySelector('[name="useCalculatedResult"]').checked ? "yes" : "no",
-    blankRt: card.querySelector('[name="blankRt"]').value,
-    blankHeight: card.querySelector('[name="blankHeight"]').value,
-    blankArea: card.querySelector('[name="blankArea"]').value,
-    blankExtraPeaks: serializePeakEditor(card, "blank"),
     referenceRt: card.querySelector('[name="referenceRt"]').value,
     referenceHeight: card.querySelector('[name="referenceHeight"]').value,
     referenceArea: card.querySelector('[name="referenceArea"]').value,
@@ -538,6 +523,34 @@ function getPracticalVariationSeed(active) {
   return hash / 9973;
 }
 
+function getAutoBlankProfile(active) {
+  const methodSeed = `${active.compositionName || ""}|${active.lambda || ""}|${active.method || ""}`;
+  let hash = 0;
+  for (let index = 0; index < methodSeed.length; index += 1) {
+    hash = (hash * 37 + methodSeed.charCodeAt(index)) % 8191;
+  }
+  const seed = hash / 8191;
+  return {
+    seed,
+    injectionHeight: 0.78 + seed * 0.42,
+    baseOffset: -1.25 - seed * 0.22,
+    decayLift: 0.62 + seed * 0.28,
+    dipCenter: 1.95 + seed * 0.55,
+    dipDepth: -2.1 - seed * 1.2,
+    reboundOneCenter: 2.25 + seed * 0.5,
+    reboundTwoCenter: 2.7 + seed * 0.55,
+    reboundOneHeight: 0.35 + seed * 0.75,
+    reboundTwoHeight: 0.18 + seed * 0.55,
+    lateStepCenter: 6.4 + seed * 1.25,
+    lateStepDepth: -0.45 - seed * 0.8,
+    driftScale: 0.04 + seed * 0.07,
+    noiseA: 0.012 + seed * 0.035,
+    noiseB: 0.009 + seed * 0.02,
+    noiseFreqA: 7.4 + seed * 3.6,
+    noiseFreqB: 18.2 + seed * 6.4,
+  };
+}
+
 function getResolvedSamplePeak(active) {
   const mode = active.calcMode || "assay-from-graph";
   const claimPercent = toNumber(hasMeaningfulValue(active.calcClaimPercent) ? active.calcClaimPercent : extractFirstNumber(active.labelClaim), 0);
@@ -697,9 +710,6 @@ function validateData(data) {
     const name = active.compositionName || `Active ${index + 1}`;
     const metrics = calculateActiveMetrics(active);
     if (!active.lambda) issues.push({ level: "warning", text: `${name}: Lambda is missing.` });
-    if (toNumber(active.blankArea, 0) > 0 || toNumber(active.blankHeight, 0) > 0 || toNumber(active.blankRt, 0) > 0) {
-      issues.push({ level: "warning", text: `${name}: Blank graph has a recorded peak. Verify if blank should be flat.` });
-    }
     if (metrics.rtDelta !== null && metrics.rtDelta > 0.2) {
       issues.push({ level: "warning", text: `${name}: Standard and test RT differ by ${metrics.rtDelta.toFixed(3)} min.` });
     }
@@ -798,10 +808,6 @@ function setFormState(data) {
         calcResponseFactor: active.calcResponseFactor,
         calcClaimPercent: active.calcClaimPercent,
         useCalculatedResult: active.useCalculatedResult,
-        blankRt: active.blankRt,
-        blankHeight: active.blankHeight,
-        blankArea: active.blankArea,
-        blankExtraPeaks: active.blankExtraPeaks,
         referenceRt: active.referenceRt,
         referenceHeight: active.referenceHeight,
         referenceArea: active.referenceArea,
@@ -1184,15 +1190,16 @@ function getDisplayPeakHeight(peak) {
   return 0;
 }
 
-function getBlankBaseline(xVal) {
-  const injectionRise = 0.95 * gaussian(xVal, 0.08, 0.12, 1);
-  const decay = -1.15 + 0.75 * Math.exp(-xVal / 0.9);
-  const dip = -2.85 * gaussian(xVal, 2.12, 0.075, 1);
-  const rebound1 = 0.9 * gaussian(xVal, 2.42, 0.06, 1);
-  const rebound2 = 0.65 * gaussian(xVal, 2.87, 0.09, 1);
-  const lateStep = -0.85 / (1 + Math.exp(-(xVal - 7.15) * 9));
-  const drift = -0.08 * Math.log1p(xVal);
-  const noise = 0.03 * Math.sin(xVal * 8.4) + 0.015 * Math.cos(xVal * 21.7);
+function getBlankBaseline(xVal, profile) {
+  const cfg = profile || getAutoBlankProfile({});
+  const injectionRise = cfg.injectionHeight * gaussian(xVal, 0.08, 0.12, 1);
+  const decay = cfg.baseOffset + cfg.decayLift * Math.exp(-xVal / 0.9);
+  const dip = cfg.dipDepth * gaussian(xVal, cfg.dipCenter, 0.075 + cfg.seed * 0.018, 1);
+  const rebound1 = cfg.reboundOneHeight * gaussian(xVal, cfg.reboundOneCenter, 0.055 + cfg.seed * 0.02, 1);
+  const rebound2 = cfg.reboundTwoHeight * gaussian(xVal, cfg.reboundTwoCenter, 0.085 + cfg.seed * 0.024, 1);
+  const lateStep = cfg.lateStepDepth / (1 + Math.exp(-(xVal - cfg.lateStepCenter) * (7.5 + cfg.seed * 3)));
+  const drift = -cfg.driftScale * Math.log1p(xVal);
+  const noise = cfg.noiseA * Math.sin(xVal * cfg.noiseFreqA) + cfg.noiseB * Math.cos(xVal * cfg.noiseFreqB);
   return injectionRise + decay + dip + rebound1 + rebound2 + lateStep + drift + noise;
 }
 
@@ -1297,15 +1304,9 @@ function parseExtraPeaks(value) {
 }
 
 function buildPeakSet(active, kind) {
+  if (kind === "blank") return [];
   const resolvedSamplePeak = getResolvedSamplePeak(active);
   const configMap = {
-    blank: {
-      rt: active.blankRt,
-      height: active.blankHeight,
-      area: active.blankArea,
-      label: `${sanitizeStem(active.compositionName)}Blank`,
-      extras: active.blankExtraPeaks,
-    },
     reference: {
       rt: active.referenceRt,
       height: active.referenceHeight,
@@ -1345,7 +1346,7 @@ function asymmetricPeak(x, center, height, width = 1, profile = "reference") {
   return main + shoulder + preBump;
 }
 
-function drawChromatogram(canvas, { peaks, kind }) {
+function drawChromatogram(canvas, { peaks, kind, active }) {
   const ctx = canvas.getContext("2d");
   const w = canvas.width;
   const h = canvas.height;
@@ -1361,10 +1362,11 @@ function drawChromatogram(canvas, { peaks, kind }) {
   }));
   const xMin = 0;
   const xMax = getAdaptiveXMax(plotPeaks, kind);
+  const blankProfile = kind === "blank" ? getAutoBlankProfile(active || {}) : null;
   const samples = [];
   for (let px = 0; px <= plotWidth; px++) {
     const xVal = xMin + (px / plotWidth) * (xMax - xMin);
-    let yVal = kind === "blank" ? getBlankBaseline(xVal) : getNonBlankBaseline(xVal, peaks, kind);
+    let yVal = kind === "blank" ? getBlankBaseline(xVal, blankProfile) : getNonBlankBaseline(xVal, peaks, kind);
     plotPeaks.forEach((peak) => {
       yVal += asymmetricPeak(xVal, peak.rt, peak.displayHeight, getPeakWidth(peak), kind);
     });
@@ -1569,6 +1571,7 @@ function buildGraphPage(data, active, kind, activeIndex) {
   drawChromatogram(canvas, {
     peaks,
     kind,
+    active,
   });
 
   const detectorNote = document.createElement("div");
@@ -1771,10 +1774,6 @@ addActiveBtn.addEventListener("click", () => {
       calcResponseFactor: "1",
       calcClaimPercent: "",
       useCalculatedResult: "yes",
-      blankRt: "",
-      blankHeight: "",
-      blankArea: "",
-      blankExtraPeaks: "",
       referenceRt: "",
       referenceHeight: "",
       referenceArea: "",
@@ -1811,10 +1810,6 @@ activeList.appendChild(
     calcResponseFactor: "1",
     calcClaimPercent: "2",
     useCalculatedResult: "yes",
-    blankRt: "0",
-    blankHeight: "0",
-    blankArea: "0",
-    blankExtraPeaks: "",
     referenceRt: "5.892",
     referenceHeight: "106517",
     referenceArea: "1823385.3",
