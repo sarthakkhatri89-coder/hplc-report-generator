@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HPLC Report Generator</title>
-    <link rel="stylesheet" href="./styles.css?v=20260523d" />
+    <link rel="stylesheet" href="./styles.css?v=20260523h" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -16,11 +16,11 @@
           <div>
             <h1>HPLC Report Generator</h1>
             <p class="sub">Build the report once, then generate the lab pages and chromatograms automatically.</p>
-            <p class="build-note">Build 2026.05.23 D</p>
+            <p class="build-note">Build 2026.05.23 H</p>
           </div>
           <div class="app-pill-row">
             <span class="app-pill">1 report page</span>
-            <span class="app-pill">3 graphs per active</span>
+            <span class="app-pill">3 graphs + calc page per active</span>
           </div>
         </div>
 
@@ -112,7 +112,7 @@
             <div class="active-header">
               <div>
                 <h2>Active Ingredients</h2>
-                <p class="section-help">Each active creates a Blank, Standard, and Test graph set.</p>
+                <p class="section-help">Each active creates a Blank, Standard, Test, and calculation page set.</p>
               </div>
               <button id="addActiveBtn" type="button" class="secondary-btn">Add Active</button>
             </div>
@@ -178,6 +178,6 @@
       </article>
     </template>
 
-    <script src="./app.js?v=20260523d"></script>
+    <script src="./app.js?v=20260523h"></script>
   </body>
   </html>

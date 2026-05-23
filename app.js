@@ -111,7 +111,7 @@ function createActiveCard(values = {}) {
     <div class="active-card-header">
       <div class="active-card-title">
         <h3>Active</h3>
-        <p>One active creates 3 graph pages: Blank, Standard, and Test.</p>
+        <p>One active creates Blank, Standard, Test, and calculation pages.</p>
       </div>
       <div class="active-card-actions">
         <button type="button" class="toggle-btn">Collapse</button>
@@ -132,16 +132,25 @@ function createActiveCard(values = {}) {
         <div class="calc-header">
           <div>
             <h4>Calculation Engine</h4>
-            <p>Assay = (Test Area / Standard Area) x (Std Factor / Sample Factor) x Std Purity x Response Factor x Claim %.</p>
+            <p>Work in both directions: calculate assay from observed peaks, or enter a desired assay and let the app plan a practical test peak set.</p>
           </div>
           <span class="calc-status">Waiting</span>
         </div>
         <div class="calc-summary">
           <div class="calc-stat"><span>Calculated Assay</span><strong data-calc-result>--</strong></div>
           <div class="calc-stat"><span>Final Status</span><strong data-calc-final>--</strong></div>
-          <div class="calc-stat"><span>RT Delta</span><strong data-calc-rt>--</strong></div>
+          <div class="calc-stat"><span>Resolved Test Peak</span><strong data-calc-rt>--</strong></div>
         </div>
         <div class="calc-grid">
+          <label>Calculation Mode
+            <select name="calcMode">
+              <option value="assay-from-graph" ${values.calcMode === "target-assay" ? "" : "selected"}>Assay from Graph</option>
+              <option value="target-assay" ${values.calcMode === "target-assay" ? "selected" : ""}>Target Assay to Peak</option>
+            </select>
+          </label>
+          <label>Desired Assay % w/w<input type="number" step="0.0001" name="desiredAssayPercent" value="${escapeHtml(
+            values.desiredAssayPercent || ""
+          )}" /></label>
           <label>Std Factor<input type="number" step="0.0001" name="calcStandardFactor" value="${escapeHtml(values.calcStandardFactor || "1")}" /></label>
           <label>Sample Factor<input type="number" step="0.0001" name="calcSampleFactor" value="${escapeHtml(values.calcSampleFactor || "1")}" /></label>
           <label>Std Purity %<input type="number" step="0.01" name="calcPurityPercent" value="${escapeHtml(values.calcPurityPercent || "100")}" /></label>
@@ -153,6 +162,22 @@ function createActiveCard(values = {}) {
               <option value="no" ${values.useCalculatedResult === "no" ? "selected" : ""}>No</option>
             </select>
           </label>
+        </div>
+        <div class="calc-table-wrap">
+          <table class="calc-table">
+            <thead>
+              <tr>
+                <th>Step</th>
+                <th>Value</th>
+                <th>Calculation</th>
+              </tr>
+            </thead>
+            <tbody data-calc-rows>
+              <tr>
+                <td colspan="3">Calculation details will appear here.</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -251,6 +276,8 @@ function collectActives() {
     method: card.querySelector('[name="method"]').value,
     lambda: card.querySelector('[name="lambda"]').value,
     sampleFileNo: card.querySelector('[name="sampleFileNo"]').value,
+    calcMode: card.querySelector('[name="calcMode"]').value,
+    desiredAssayPercent: card.querySelector('[name="desiredAssayPercent"]').value,
     calcStandardFactor: card.querySelector('[name="calcStandardFactor"]').value,
     calcSampleFactor: card.querySelector('[name="calcSampleFactor"]').value,
     calcPurityPercent: card.querySelector('[name="calcPurityPercent"]').value,
@@ -282,11 +309,11 @@ function updateActiveTitles() {
 }
 
 function updatePreviewSummary(activeCount) {
-  const totalPages = 1 + activeCount * 3;
+  const totalPages = 1 + activeCount * 4;
   const activeLabel = `${activeCount} active${activeCount === 1 ? "" : "s"}`;
   const pageLabel = `${totalPages} page${totalPages === 1 ? "" : "s"}`;
   pageSummary.textContent = `${activeLabel}, ${pageLabel}`;
-  previewSummary.textContent = `${activeLabel} will generate ${pageLabel}: 1 report page and ${activeCount * 3} graph pages.`;
+  previewSummary.textContent = `${activeLabel} will generate ${pageLabel}: 1 report page plus ${activeCount * 3} graph pages and ${activeCount} calculation pages.`;
 }
 
 function getPrintTitle() {
@@ -305,14 +332,8 @@ function restoreDocumentTitle() {
 
 function buildExportFilename() {
   const data = currentRenderDataSet[0] || collectFormData();
-  const sampleName =
-    currentRenderDataSet.length > 1
-      ? `Bulk_${currentRenderDataSet.length}_Reports`
-      : (data.sampleName || "HPLC Report").trim().replace(/[\\/:*?"<>|]+/g, " ");
-  const reportNo =
-    currentRenderDataSet.length > 1
-      ? "BATCH"
-      : (data.reportNo || "NO-REPORT").trim().replace(/[\\/:*?"<>|]+/g, " ");
+  const sampleName = (data.sampleName || "HPLC Report").trim().replace(/[\\/:*?"<>|]+/g, " ");
+  const reportNo = (data.reportNo || "NO-REPORT").trim().replace(/[\\/:*?"<>|]+/g, " ");
   const dateTag = (data.analysisCompletedDate || data.receivedOn || "").replace(/-/g, "") || formatDateFromDate(getGraphDate(data)).replace(/\//g, "");
   const modeTag = exportModeSelect.value === "report" ? "report" : exportModeSelect.value === "graphs" ? "graphs" : "full";
   return `${sampleName}_${reportNo}_${dateTag}_${modeTag}.pdf`.replace(/\s+/g, "_");
@@ -459,6 +480,10 @@ function extractFirstNumber(value) {
   return match ? Number(match[0]) : null;
 }
 
+function hasMeaningfulValue(value) {
+  return String(value ?? "").trim() !== "";
+}
+
 function parseLimitRange(value) {
   const matches = String(value || "").match(/-?\d+(\.\d+)?/g) || [];
   if (matches.length < 2) return null;
@@ -469,24 +494,89 @@ function formatAssayValue(value) {
   return Number.isFinite(value) ? `${value.toFixed(4)}% w/w` : "--";
 }
 
+function formatCalcNumber(value, digits = 4) {
+  return Number.isFinite(value) ? value.toFixed(digits) : "--";
+}
+
+function getPracticalVariationSeed(active) {
+  const seedSource = `${active.compositionName || ""}|${active.referenceRt || ""}|${active.referenceArea || ""}|${active.sampleFileNo || ""}`;
+  let hash = 0;
+  for (let index = 0; index < seedSource.length; index += 1) {
+    hash = (hash * 31 + seedSource.charCodeAt(index)) % 9973;
+  }
+  return hash / 9973;
+}
+
+function getResolvedSamplePeak(active) {
+  const mode = active.calcMode || "assay-from-graph";
+  const claimPercent = toNumber(hasMeaningfulValue(active.calcClaimPercent) ? active.calcClaimPercent : extractFirstNumber(active.labelClaim), 0);
+  const stdFactor = Math.max(toNumber(active.calcStandardFactor, 1), 0.000001);
+  const sampleFactor = Math.max(toNumber(active.calcSampleFactor, 1), 0.000001);
+  const purityFactor = Math.max(toNumber(active.calcPurityPercent, 100), 0) / 100;
+  const responseFactor = Math.max(toNumber(active.calcResponseFactor, 1), 0.000001);
+  const stdArea = toNumber(active.referenceArea, 0);
+  const referenceRt = toNumber(active.referenceRt, 0);
+  const referenceHeight = Math.max(toNumber(active.referenceHeight, 0), estimateHeightFromArea(active.referenceArea));
+  const manualSampleArea = toNumber(active.sampleArea, 0);
+  const manualSampleHeight = Math.max(toNumber(active.sampleHeight, 0), estimateHeightFromArea(active.sampleArea));
+  const manualSampleRt = toNumber(active.sampleRt, referenceRt || 0);
+  const desiredAssay = toNumber(active.desiredAssayPercent, NaN);
+  const seed = getPracticalVariationSeed(active);
+
+  if (mode !== "target-assay" || !Number.isFinite(desiredAssay) || desiredAssay <= 0 || stdArea <= 0 || claimPercent <= 0) {
+    return {
+      mode,
+      rt: manualSampleRt,
+      height: manualSampleHeight,
+      area: manualSampleArea,
+      derived: false,
+      desiredAssay: Number.isFinite(desiredAssay) ? desiredAssay : null,
+    };
+  }
+
+  const targetArea =
+    stdArea * (desiredAssay / claimPercent) * (sampleFactor / stdFactor) * (purityFactor > 0 ? 1 / purityFactor : 0) * (responseFactor > 0 ? 1 / responseFactor : 0);
+  const rtShift = ((seed - 0.5) * 0.06) + 0.012;
+  const targetRt = Math.max(0.001, referenceRt + rtShift);
+  const heightRatio = 0.965 + seed * 0.09;
+  const targetHeight = Math.max(1, Math.round(referenceHeight * heightRatio));
+
+  return {
+    mode,
+    rt: targetRt,
+    height: targetHeight,
+    area: Math.max(0, targetArea),
+    derived: true,
+    desiredAssay,
+  };
+}
+
 function calculateActiveMetrics(active) {
-  const claimPercent = toNumber(active.calcClaimPercent || extractFirstNumber(active.labelClaim), 0);
+  const hasClaimOverride = hasMeaningfulValue(active.calcClaimPercent);
+  const claimPercent = toNumber(hasClaimOverride ? active.calcClaimPercent : extractFirstNumber(active.labelClaim), 0);
   const stdFactor = Math.max(toNumber(active.calcStandardFactor, 1), 0.000001);
   const sampleFactor = Math.max(toNumber(active.calcSampleFactor, 1), 0.000001);
   const purityFactor = Math.max(toNumber(active.calcPurityPercent, 100), 0) / 100;
   const responseFactor = Math.max(toNumber(active.calcResponseFactor, 1), 0);
   const stdArea = toNumber(active.referenceArea, 0);
-  const sampleArea = toNumber(active.sampleArea, 0);
+  const resolvedSamplePeak = getResolvedSamplePeak(active);
+  const sampleArea = toNumber(resolvedSamplePeak.area, 0);
   const calculatedAssay =
     stdArea > 0 && claimPercent > 0
       ? (sampleArea / stdArea) * (stdFactor / sampleFactor) * purityFactor * responseFactor * claimPercent
       : null;
   const manualAssay = extractFirstNumber(active.compositionResult);
-  const finalAssay = active.useCalculatedResult === "yes" && Number.isFinite(calculatedAssay) ? calculatedAssay : manualAssay;
+  const desiredAssay = Number.isFinite(resolvedSamplePeak.desiredAssay) ? resolvedSamplePeak.desiredAssay : null;
+  const finalAssay =
+    active.calcMode === "target-assay" && Number.isFinite(desiredAssay)
+      ? desiredAssay
+      : active.useCalculatedResult === "yes" && Number.isFinite(calculatedAssay)
+      ? calculatedAssay
+      : manualAssay;
   const limitRange = parseLimitRange(active.limits);
   const rtDelta =
-    Number.isFinite(toNumber(active.sampleRt, NaN)) && Number.isFinite(toNumber(active.referenceRt, NaN))
-      ? Math.abs(toNumber(active.sampleRt, 0) - toNumber(active.referenceRt, 0))
+    Number.isFinite(toNumber(resolvedSamplePeak.rt, NaN)) && Number.isFinite(toNumber(active.referenceRt, NaN))
+      ? Math.abs(toNumber(resolvedSamplePeak.rt, 0) - toNumber(active.referenceRt, 0))
       : null;
   let status = "warn";
   let message = "Needs review";
@@ -502,14 +592,45 @@ function calculateActiveMetrics(active) {
     status = "pass";
     message = "Calculated";
   }
+  const calculationRows = [
+    { step: "Standard Area", value: formatAreaValue(stdArea), working: "" },
+    {
+      step: resolvedSamplePeak.derived ? "Resolved Test Area" : "Observed Test Area",
+      value: formatAreaValue(sampleArea),
+      working: "",
+    },
+    { step: "Claim %", value: formatCalcNumber(claimPercent), working: "" },
+    { step: "Std Factor / Sample Factor", value: `${formatCalcNumber(stdFactor)} / ${formatCalcNumber(sampleFactor)}`, working: `= ${formatCalcNumber(stdFactor / sampleFactor)}` },
+    { step: "Std Purity x Response", value: `${formatCalcNumber(purityFactor, 6)} x ${formatCalcNumber(responseFactor, 6)}`, working: `= ${formatCalcNumber(purityFactor * responseFactor, 6)}` },
+    {
+      step: "Assay Formula",
+      value: Number.isFinite(calculatedAssay) ? formatAssayValue(calculatedAssay) : "--",
+      working: stdArea > 0 && claimPercent > 0 ? `(${formatAreaValue(sampleArea)} / ${formatAreaValue(stdArea)}) x (${formatCalcNumber(stdFactor)} / ${formatCalcNumber(sampleFactor)}) x ${formatCalcNumber(purityFactor, 6)} x ${formatCalcNumber(responseFactor, 6)} x ${formatCalcNumber(claimPercent)}` : "",
+    },
+    {
+      step: "Resolved Test RT / Height",
+      value: `${formatGraphValue(resolvedSamplePeak.rt)} min / ${formatHeightValue(resolvedSamplePeak.height)}`,
+      working: "",
+    },
+  ];
+  if (resolvedSamplePeak.derived) {
+    calculationRows.unshift({
+      step: "Desired Assay",
+      value: formatAssayValue(desiredAssay),
+      working: "",
+    });
+  }
   return {
     claimPercent,
+    hasClaimOverride,
     calculatedAssay,
     finalAssay,
     limitRange,
     rtDelta,
     status,
     message,
+    resolvedSamplePeak,
+    calculationRows,
   };
 }
 
@@ -554,6 +675,9 @@ function validateData(data) {
     if (metrics.status === "fail") {
       issues.push({ level: "error", text: `${name}: Assay is outside the configured limit range.` });
     }
+    if (active.calcMode === "target-assay" && !Number.isFinite(metrics.resolvedSamplePeak.desiredAssay)) {
+      issues.push({ level: "warning", text: `${name}: Desired assay is missing, so target peak planning cannot run.` });
+    }
     if (metrics.calculatedAssay === null) {
       issues.push({ level: "warning", text: `${name}: Calculation engine is incomplete because reference area, sample area, or claim is missing.` });
     }
@@ -581,11 +705,26 @@ function refreshActiveCardStates(data) {
     const result = card.querySelector("[data-calc-result]");
     const final = card.querySelector("[data-calc-final]");
     const rt = card.querySelector("[data-calc-rt]");
+    const rows = card.querySelector("[data-calc-rows]");
     status.className = `calc-status ${metrics.status === "pass" ? "" : metrics.status === "fail" ? "fail" : "warn"}`.trim();
     status.textContent = metrics.message;
     result.textContent = formatAssayValue(metrics.calculatedAssay);
     final.textContent = metrics.finalAssay !== null ? formatAssayValue(metrics.finalAssay) : "--";
-    rt.textContent = metrics.rtDelta !== null ? `${metrics.rtDelta.toFixed(3)} min` : "--";
+    rt.textContent =
+      Number.isFinite(metrics.resolvedSamplePeak.rt) && Number.isFinite(metrics.resolvedSamplePeak.height)
+        ? `${formatGraphValue(metrics.resolvedSamplePeak.rt)} min / ${formatHeightValue(metrics.resolvedSamplePeak.height)}`
+        : "--";
+    rows.innerHTML = metrics.calculationRows
+      .map(
+        (row) => `
+          <tr>
+            <td>${escapeHtml(row.step)}</td>
+            <td>${escapeHtml(row.value)}</td>
+            <td>${escapeHtml(row.working)}</td>
+          </tr>
+        `
+      )
+      .join("");
   });
 }
 
@@ -619,6 +758,8 @@ function setFormState(data) {
         method: active.method,
         lambda: active.lambda,
         sampleFileNo: active.sampleFileNo,
+        calcMode: active.calcMode,
+        desiredAssayPercent: active.desiredAssayPercent,
         calcStandardFactor: active.calcStandardFactor,
         calcSampleFactor: active.calcSampleFactor,
         calcPurityPercent: active.calcPurityPercent,
@@ -680,10 +821,7 @@ function buildKrishnaReportPage(data) {
   const activeRows = (data.actives.length ? data.actives : [{}])
     .map((active, index) => {
       const metrics = metricsList[index] || calculateActiveMetrics(active);
-      const resultValue =
-        active.useCalculatedResult === "yes" && Number.isFinite(metrics.calculatedAssay)
-          ? formatAssayValue(metrics.calculatedAssay)
-          : getDisplayText(active.compositionResult);
+      const resultValue = Number.isFinite(metrics.finalAssay) ? formatAssayValue(metrics.finalAssay) : getDisplayText(active.compositionResult);
       return `
         <tr>
           <td colspan="2">${getDisplayHtml(active.compositionName)}</td>
@@ -910,10 +1048,7 @@ function buildGenericReportPage(data) {
   const actives = data.actives.length ? data.actives : [{}];
   actives.forEach((active, index) => {
     const metrics = metricsList[index] || calculateActiveMetrics(active);
-    const resultValue =
-      active.useCalculatedResult === "yes" && Number.isFinite(metrics.calculatedAssay)
-        ? formatAssayValue(metrics.calculatedAssay)
-        : active.compositionResult;
+    const resultValue = Number.isFinite(metrics.finalAssay) ? formatAssayValue(metrics.finalAssay) : active.compositionResult;
     const compTr = document.createElement("tr");
     [
       active.compositionName,
@@ -1009,13 +1144,11 @@ function getPeakWidth(peak) {
   return clamp(ratio, 0.65, 1.85);
 }
 
-function getDisplayPeakHeight(peak, kind) {
+function getDisplayPeakHeight(peak) {
   const rawHeight = Math.abs(toNumber(peak.height, 0));
   const rawArea = Math.max(toNumber(peak.area, 0), 0);
-  if (kind === "blank") return rawHeight;
-  if (rawHeight >= 2000) return rawHeight / 1000;
   if (rawHeight > 0) return rawHeight;
-  if (rawArea > 0) return Math.sqrt(rawArea) / 4;
+  if (rawArea > 0) return estimateHeightFromArea(rawArea);
   return 0;
 }
 
@@ -1031,10 +1164,13 @@ function getBlankBaseline(xVal) {
   return injectionRise + decay + dip + rebound1 + rebound2 + lateStep + drift + noise;
 }
 
-function getNonBlankBaseline(xVal, peaks) {
-  const seed = peaks.reduce((sum, peak, index) => sum + (peak.rt || 0) * (index + 1), 0) || 1;
-  const drift = 2 + 0.28 * xVal + 0.6 * Math.sin((xVal + seed) * 0.45);
-  const ripple = 0.9 * Math.sin((xVal + seed) * 7.5) + 0.35 * Math.cos((xVal + seed) * 13.2);
+function getNonBlankBaseline(xVal, peaks, kind) {
+  const seed = (peaks.reduce((sum, peak, index) => sum + (peak.rt || 0) * (index + 1), 0) || 1) + (kind === "sample" ? 0.83 : 0.21);
+  const driftBase = kind === "sample" ? 2.4 : 1.9;
+  const driftSlope = kind === "sample" ? 0.31 : 0.24;
+  const drift = driftBase + driftSlope * xVal + 0.6 * Math.sin((xVal + seed) * 0.45);
+  const rippleStrength = kind === "sample" ? 1.05 : 0.82;
+  const ripple = rippleStrength * Math.sin((xVal + seed) * 7.5) + 0.35 * Math.cos((xVal + seed) * 13.2);
   return drift + ripple;
 }
 
@@ -1129,6 +1265,7 @@ function parseExtraPeaks(value) {
 }
 
 function buildPeakSet(active, kind) {
+  const resolvedSamplePeak = getResolvedSamplePeak(active);
   const configMap = {
     blank: {
       rt: active.blankRt,
@@ -1145,10 +1282,10 @@ function buildPeakSet(active, kind) {
       extras: active.referenceExtraPeaks,
     },
     sample: {
-      rt: active.sampleRt,
-      height: active.sampleHeight,
-      area: active.sampleArea,
-      label: formatRtLabel(active.sampleRt),
+      rt: resolvedSamplePeak.rt,
+      height: resolvedSamplePeak.height,
+      area: resolvedSamplePeak.area,
+      label: formatRtLabel(resolvedSamplePeak.rt),
       extras: active.sampleExtraPeaks,
     },
   };
@@ -1165,14 +1302,15 @@ function buildPeakSet(active, kind) {
   return peaks.sort((a, b) => a.rt - b.rt).map((peak, index) => ({ ...peak, id: index + 1 }));
 }
 
-function asymmetricPeak(x, center, height, width = 1) {
+function asymmetricPeak(x, center, height, width = 1, profile = "reference") {
   if (height <= 0) return 0;
-  const leftSigma = 0.05 * width;
-  const rightSigma = 0.14 * width;
+  const leftSigma = profile === "sample" ? 0.054 * width : 0.05 * width;
+  const rightSigma = profile === "sample" ? 0.17 * width : 0.14 * width;
   const sigma = x <= center ? leftSigma : rightSigma;
   const main = gaussian(x, center, sigma, height);
-  const shoulder = x > center ? gaussian(x, center + 0.05 * width, 0.18 * width, height * 0.12) : 0;
-  return main + shoulder;
+  const shoulder = x > center ? gaussian(x, center + 0.05 * width, profile === "sample" ? 0.21 * width : 0.18 * width, height * (profile === "sample" ? 0.16 : 0.12)) : 0;
+  const preBump = profile === "sample" ? gaussian(x, center - 0.07 * width, 0.04 * width, height * 0.035) : 0;
+  return main + shoulder + preBump;
 }
 
 function drawChromatogram(canvas, { peaks, kind }) {
@@ -1187,16 +1325,16 @@ function drawChromatogram(canvas, { peaks, kind }) {
   const plotHeight = h - top - bottom;
   const plotPeaks = peaks.map((peak) => ({
     ...peak,
-    displayHeight: getDisplayPeakHeight(peak, kind),
+    displayHeight: getDisplayPeakHeight(peak),
   }));
   const xMin = 0;
   const xMax = getAdaptiveXMax(plotPeaks, kind);
   const samples = [];
   for (let px = 0; px <= plotWidth; px++) {
     const xVal = xMin + (px / plotWidth) * (xMax - xMin);
-    let yVal = kind === "blank" ? getBlankBaseline(xVal) : getNonBlankBaseline(xVal, peaks);
+    let yVal = kind === "blank" ? getBlankBaseline(xVal) : getNonBlankBaseline(xVal, peaks, kind);
     plotPeaks.forEach((peak) => {
-      yVal += asymmetricPeak(xVal, peak.rt, peak.displayHeight, getPeakWidth(peak));
+      yVal += asymmetricPeak(xVal, peak.rt, peak.displayHeight, getPeakWidth(peak), kind);
     });
     samples.push({ xVal, yVal });
   }
@@ -1282,7 +1420,7 @@ function drawChromatogram(canvas, { peaks, kind }) {
       .slice(0, 3);
     labeledPeaks.forEach((peak) => {
       const peakX = left + ((peak.rt - xMin) / (xMax - xMin)) * plotWidth;
-      const peakValue = getNonBlankBaseline(peak.rt, peaks) + peak.displayHeight;
+      const peakValue = getNonBlankBaseline(peak.rt, peaks, kind) + peak.displayHeight;
       const peakY = top + plotHeight - ((peakValue - yMin) / (yMax - yMin)) * plotHeight;
       ctx.save();
       ctx.translate(peakX + 8, peakY + 6);
@@ -1464,6 +1602,78 @@ function buildGraphPage(data, active, kind, activeIndex) {
   return page;
 }
 
+function buildCalculationPage(data, active, activeIndex) {
+  const metrics = calculateActiveMetrics(active);
+  const page = document.createElement("article");
+  page.className = "page a4 calculation-page";
+  const activeName = active.compositionName || `Active ${activeIndex + 1}`;
+  const modeLabel = active.calcMode === "target-assay" ? "Target Assay to Peak" : "Assay from Graph";
+  const limitRange = metrics.limitRange ? `${formatCalcNumber(metrics.limitRange.min)} to ${formatCalcNumber(metrics.limitRange.max)} % w/w` : "-";
+  const resolvedArea = formatAreaValue(metrics.resolvedSamplePeak.area);
+  const resolvedHeight = formatHeightValue(metrics.resolvedSamplePeak.height);
+  const resolvedRt = formatGraphValue(metrics.resolvedSamplePeak.rt);
+  const detailRows = metrics.calculationRows
+    .map(
+      (row) => `
+        <tr>
+          <td>${escapeHtml(row.step)}</td>
+          <td>${escapeHtml(row.value)}</td>
+          <td>${escapeHtml(row.working)}</td>
+        </tr>
+      `
+    )
+    .join("");
+
+  page.innerHTML = `
+    <div class="calculation-page-head">
+      <div>
+        <h2>Calculation Sheet</h2>
+        <p>${escapeHtml(activeName)} | ${escapeHtml(data.sampleName || "-")}</p>
+      </div>
+      <div class="calculation-badge ${metrics.status === "fail" ? "fail" : metrics.status === "warn" ? "warn" : ""}">${escapeHtml(
+        metrics.message
+      )}</div>
+    </div>
+
+    <div class="calculation-top-grid">
+      <div class="calculation-meta-card">
+        <h3>Product Context</h3>
+        <dl>
+          <div><dt>Report No.</dt><dd>${escapeHtml(getDisplayText(data.reportNo))}</dd></div>
+          <div><dt>Batch No.</dt><dd>${escapeHtml(getDisplayText(data.batchNo))}</dd></div>
+          <div><dt>Mode</dt><dd>${escapeHtml(modeLabel)}</dd></div>
+          <div><dt>Lambda</dt><dd>${escapeHtml(getDisplayText(active.lambda))} nm</dd></div>
+          <div><dt>Limits</dt><dd>${escapeHtml(limitRange)}</dd></div>
+          <div><dt>Claim</dt><dd>${formatCalcNumber(metrics.claimPercent)} % w/w</dd></div>
+        </dl>
+      </div>
+      <div class="calculation-meta-card">
+        <h3>Resolved Test Peak</h3>
+        <dl>
+          <div><dt>RT</dt><dd>${resolvedRt} min</dd></div>
+          <div><dt>Area</dt><dd>${resolvedArea}</dd></div>
+          <div><dt>Height</dt><dd>${resolvedHeight}</dd></div>
+          <div><dt>Calculated Assay</dt><dd>${escapeHtml(formatAssayValue(metrics.calculatedAssay))}</dd></div>
+          <div><dt>Final Assay</dt><dd>${escapeHtml(formatAssayValue(metrics.finalAssay))}</dd></div>
+          <div><dt>RT Delta</dt><dd>${metrics.rtDelta !== null ? `${metrics.rtDelta.toFixed(3)} min` : "--"}</dd></div>
+        </dl>
+      </div>
+    </div>
+
+    <table class="calculation-detail-table">
+      <thead>
+        <tr>
+          <th>Step</th>
+          <th>Value</th>
+          <th>Calculation</th>
+        </tr>
+      </thead>
+      <tbody>${detailRows}</tbody>
+    </table>
+  `;
+  return page;
+}
+
 function generatePages() {
   const data = collectFormData();
   currentRenderDataSet = [data];
@@ -1476,6 +1686,7 @@ function generatePages() {
     previewRoot.appendChild(buildGraphPage(data, active, "blank", activeIndex));
     previewRoot.appendChild(buildGraphPage(data, active, "reference", activeIndex));
     previewRoot.appendChild(buildGraphPage(data, active, "sample", activeIndex));
+    previewRoot.appendChild(buildCalculationPage(data, active, activeIndex));
   });
 }
 
@@ -1492,6 +1703,8 @@ addActiveBtn.addEventListener("click", () => {
       method: "",
       lambda: "",
       sampleFileNo: "",
+      calcMode: "assay-from-graph",
+      desiredAssayPercent: "",
       calcStandardFactor: "1",
       calcSampleFactor: "1",
       calcPurityPercent: "100",
@@ -1530,6 +1743,8 @@ activeList.appendChild(
     method: "SK-001",
     lambda: "225",
     sampleFileNo: "2",
+    calcMode: "assay-from-graph",
+    desiredAssayPercent: "",
     calcStandardFactor: "1",
     calcSampleFactor: "1",
     calcPurityPercent: "100",
