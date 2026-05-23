@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HPLC Report Generator</title>
-    <link rel="stylesheet" href="./styles.css?v=20260523a" />
+    <link rel="stylesheet" href="./styles.css?v=20260523b" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -17,7 +17,7 @@
           <div>
             <h1>HPLC Report Generator</h1>
             <p class="sub">Build the report once, then generate the lab pages and chromatograms automatically.</p>
-            <p class="build-note">Build 2026.05.23 A</p>
+            <p class="build-note">Build 2026.05.23 B</p>
           </div>
           <div class="app-pill-row">
             <span class="app-pill">1 report page</span>
@@ -29,7 +29,7 @@
           <section class="section-card control-card">
             <div class="section-head">
               <h2>Workspace</h2>
-              <p>Presets, drafts, reuse, and export controls.</p>
+              <p>Template, export mode, and bulk tools only.</p>
             </div>
             <div class="form-grid cols-2">
               <label>Template Preset
@@ -39,31 +39,6 @@
                   <option value="compact">Compact Style</option>
                 </select>
               </label>
-              <label>Draft Name<input id="draftName" name="draftName" placeholder="Tickdown Soap May Batch" /></label>
-              <label>Saved Drafts
-                <select id="draftSelect">
-                  <option value="">No saved drafts</option>
-                </select>
-              </label>
-              <div class="control-actions">
-                <button id="saveDraftBtn" type="button" class="secondary-btn">Save Draft</button>
-                <button id="loadDraftBtn" type="button" class="secondary-btn">Load</button>
-                <button id="duplicateDraftBtn" type="button" class="secondary-btn">Duplicate</button>
-                <button id="reuseBatchBtn" type="button" class="secondary-btn">Reuse For Batch</button>
-                <button id="deleteDraftBtn" type="button" class="secondary-btn">Delete</button>
-              </div>
-              <label>Formula Name<input id="formulaName" name="formulaName" placeholder="Tickmac Soap 5% Formula" /></label>
-              <label>Saved Formulas
-                <select id="formulaSelect">
-                  <option value="">No saved formulas</option>
-                </select>
-              </label>
-              <div class="control-actions">
-                <button id="saveFormulaBtn" type="button" class="secondary-btn">Save Formula</button>
-                <button id="loadFormulaBtn" type="button" class="secondary-btn">Load Formula</button>
-                <button id="duplicateFormulaBtn" type="button" class="secondary-btn">Duplicate Formula</button>
-                <button id="deleteFormulaBtn" type="button" class="secondary-btn">Delete Formula</button>
-              </div>
               <label>Export Mode
                 <select id="exportMode" name="exportMode">
                   <option value="full">Full Report PDF</option>
@@ -78,7 +53,7 @@
               <div class="bulk-card full-span">
                 <div class="section-head">
                   <h2>Bulk Generation</h2>
-                  <p>Paste Excel rows here to create many reports from the current formula or current form.</p>
+                  <p>Paste or upload rows, map the columns, then generate many reports from the current form.</p>
                 </div>
                 <label class="full-span">Bulk Rows
                   <textarea id="bulkInput" rows="7" placeholder="reportNo	sampleName	batchNo	batchSize	sampleQty	receivedOn	refDate	analysisStartedDate	analysisCompletedDate&#10;SKL-0001	Tickmac Soap	BS-001	750 KG	75 G	2026-05-18	2026-05-17	2026-05-19	2026-05-22"></textarea>
@@ -155,6 +130,7 @@
                 <label>Exp. Date<input name="expDate" placeholder="MM/YYYY" /></label>
                 <label>Batch Size<input name="batchSize" placeholder="82.5 kg" /></label>
                 <label>Sample Qty.<input name="sampleQty" placeholder="75 g" /></label>
+                <label>Pack Size<input name="packSize" placeholder="75 g" /></label>
               </div>
             </section>
           </form>
@@ -229,6 +205,6 @@
       </article>
     </template>
 
-    <script src="./app.js?v=20260523a"></script>
+    <script src="./app.js?v=20260523b"></script>
   </body>
   </html>

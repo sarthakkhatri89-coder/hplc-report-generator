@@ -698,8 +698,8 @@ button:hover {
 
 .krishna-side-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  column-gap: 18px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 14px;
   margin-top: 6px;
 }
 

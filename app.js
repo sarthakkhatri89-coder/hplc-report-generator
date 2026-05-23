@@ -8,19 +8,6 @@ const addActiveBtn = document.getElementById("addActiveBtn");
 const pageSummary = document.getElementById("pageSummary");
 const previewSummary = document.getElementById("previewSummary");
 const presetSelect = document.getElementById("presetSelect");
-const draftNameInput = document.getElementById("draftName");
-const draftSelect = document.getElementById("draftSelect");
-const saveDraftBtn = document.getElementById("saveDraftBtn");
-const loadDraftBtn = document.getElementById("loadDraftBtn");
-const duplicateDraftBtn = document.getElementById("duplicateDraftBtn");
-const reuseBatchBtn = document.getElementById("reuseBatchBtn");
-const deleteDraftBtn = document.getElementById("deleteDraftBtn");
-const formulaNameInput = document.getElementById("formulaName");
-const formulaSelect = document.getElementById("formulaSelect");
-const saveFormulaBtn = document.getElementById("saveFormulaBtn");
-const loadFormulaBtn = document.getElementById("loadFormulaBtn");
-const duplicateFormulaBtn = document.getElementById("duplicateFormulaBtn");
-const deleteFormulaBtn = document.getElementById("deleteFormulaBtn");
 const bulkInput = document.getElementById("bulkInput");
 const bulkFileInput = document.getElementById("bulkFileInput");
 const bulkFileStatus = document.getElementById("bulkFileStatus");
@@ -34,29 +21,6 @@ const exportModeSelect = document.getElementById("exportMode");
 const validationHeadline = document.getElementById("validationHeadline");
 const validationList = document.getElementById("validationList");
 const defaultDocumentTitle = document.title;
-const DRAFT_STORAGE_KEY = "hplc-report-drafts-v2";
-const FORMULA_STORAGE_KEY = "hplc-report-formulas-v1";
-const FORMULA_VARIABLE_FIELDS = [
-  "reportNo",
-  "sampleName",
-  "submittedBy",
-  "address",
-  "manufacturedBy",
-  "suppliedBy",
-  "mfgLicNo",
-  "refNo",
-  "receivedOn",
-  "refDate",
-  "analysisStartedDate",
-  "analysisCompletedDate",
-  "mfgDate",
-  "expDate",
-  "batchNo",
-  "batchSize",
-  "sampleQty",
-  "descriptionResult",
-  "assayResult",
-];
 const BULK_ACTIVE_FIELD_MAP = {
   SampleFileNo: "sampleFileNo",
   BlankRt: "blankRt",
@@ -81,6 +45,7 @@ const BULK_BASE_COLUMNS = [
   "batchNo",
   "batchSize",
   "sampleQty",
+  "packSize",
   "receivedOn",
   "refDate",
   "analysisStartedDate",
@@ -101,6 +66,7 @@ const BULK_BASE_LABELS = {
   batchNo: "Batch No.",
   batchSize: "Batch Size",
   sampleQty: "Sample Qty.",
+  packSize: "Pack Size",
   receivedOn: "Received On",
   refDate: "Ref. Date",
   analysisStartedDate: "Analysis Started Date",
@@ -120,6 +86,7 @@ const BULK_BASE_ALIASES = {
   batchNo: ["batch no", "batch number", "batch"],
   batchSize: ["batch size", "batch wt", "batch weight"],
   sampleQty: ["sample qty", "sample quantity", "qty", "quantity"],
+  packSize: ["pack size", "packing size", "packsize"],
   receivedOn: ["received on", "sample received date", "received date", "sample receive date"],
   refDate: ["ref date", "reference date"],
   analysisStartedDate: ["analysis started date", "started date", "analysis start date"],
@@ -286,7 +253,7 @@ function createActiveCard(values = {}) {
         <div class="calc-header">
           <div>
             <h4>Calculation Engine</h4>
-            <p>Assay can be estimated from Standard and Test peak areas.</p>
+            <p>Assay = (Test Area / Standard Area) x (Std Factor / Sample Factor) x Std Purity x Response Factor x Claim %.</p>
           </div>
           <span class="calc-status">Waiting</span>
         </div>
@@ -303,8 +270,8 @@ function createActiveCard(values = {}) {
           <label>Claim % Override<input type="number" step="0.0001" name="calcClaimPercent" value="${escapeHtml(values.calcClaimPercent || "")}" /></label>
           <label>Use Calculated Result
             <select name="useCalculatedResult">
-              <option value="no" ${values.useCalculatedResult === "yes" ? "" : "selected"}>No</option>
-              <option value="yes" ${values.useCalculatedResult === "yes" ? "selected" : ""}>Yes</option>
+              <option value="yes" ${values.useCalculatedResult === "no" ? "" : "selected"}>Yes</option>
+              <option value="no" ${values.useCalculatedResult === "no" ? "selected" : ""}>No</option>
             </select>
           </label>
         </div>
@@ -394,44 +361,6 @@ function createActiveCard(values = {}) {
     });
   });
   return card;
-}
-
-function getDrafts() {
-  try {
-    return JSON.parse(localStorage.getItem(DRAFT_STORAGE_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function setDrafts(drafts) {
-  localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(drafts));
-}
-
-function renderDraftOptions() {
-  const drafts = getDrafts();
-  draftSelect.innerHTML = drafts.length
-    ? drafts.map((draft) => `<option value="${escapeHtml(draft.id)}">${escapeHtml(draft.name)}</option>`).join("")
-    : '<option value="">No saved drafts</option>';
-}
-
-function getFormulas() {
-  try {
-    return JSON.parse(localStorage.getItem(FORMULA_STORAGE_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function setFormulas(formulas) {
-  localStorage.setItem(FORMULA_STORAGE_KEY, JSON.stringify(formulas));
-}
-
-function renderFormulaOptions() {
-  const formulas = getFormulas();
-  formulaSelect.innerHTML = formulas.length
-    ? formulas.map((formula) => `<option value="${escapeHtml(formula.id)}">${escapeHtml(formula.name)}</option>`).join("")
-    : '<option value="">No saved formulas</option>';
 }
 
 function collectActives() {
@@ -654,8 +583,6 @@ function collectFormData() {
     actives: collectActives(),
     preset: presetSelect.value,
     exportMode: exportModeSelect.value,
-    draftName: draftNameInput.value.trim(),
-    formulaName: formulaNameInput.value.trim(),
   };
 }
 
@@ -804,41 +731,15 @@ function applyPreset(name) {
   generatePages();
 }
 
-function clearBatchFields(data) {
-  return {
-    ...data,
-    reportNo: "",
-    batchNo: "",
-    receivedOn: "",
-    refDate: "",
-    analysisStartedDate: "",
-    analysisCompletedDate: "",
-    acquiredTime: data.acquiredTime || "15:30:01",
-  };
-}
-
-function clearFormulaVariableFields(data) {
-  const cleared = {
-    ...data,
-    draftName: "",
-  };
-  FORMULA_VARIABLE_FIELDS.forEach((key) => {
-    cleared[key] = "";
-  });
-  return cleared;
-}
-
 function setFormState(data) {
   const baseEntries = { ...data };
   delete baseEntries.actives;
   Object.entries(baseEntries).forEach(([key, value]) => {
     const field = document.getElementById(key) || form.querySelector(`[name="${key}"]`);
-    if (field && key !== "draftName") field.value = value ?? "";
+    if (field) field.value = value ?? "";
   });
   presetSelect.value = data.preset || presetSelect.value;
   exportModeSelect.value = data.exportMode || exportModeSelect.value;
-  draftNameInput.value = data.draftName || "";
-  formulaNameInput.value = data.formulaName || "";
   activeList.innerHTML = "";
   (data.actives || []).forEach((active) => {
     activeList.appendChild(
@@ -876,93 +777,6 @@ function setFormState(data) {
   }
   updateActiveTitles();
   generatePages();
-}
-
-function saveCurrentDraft() {
-  const name = draftNameInput.value.trim() || `Draft ${new Date().toLocaleString()}`;
-  const draft = { id: crypto.randomUUID(), name, data: collectFormData() };
-  const drafts = getDrafts();
-  const existingIndex = drafts.findIndex((item) => item.name === name || item.id === draftSelect.value);
-  if (existingIndex >= 0) drafts[existingIndex] = { ...drafts[existingIndex], name, data: draft.data };
-  else drafts.unshift(draft);
-  setDrafts(drafts);
-  renderDraftOptions();
-  draftSelect.value = existingIndex >= 0 ? drafts[existingIndex].id : draft.id;
-}
-
-function loadSelectedDraft() {
-  const selected = getDrafts().find((draft) => draft.id === draftSelect.value);
-  if (!selected) return;
-  bulkPreviewRows = [];
-  setFormState({ ...selected.data, draftName: selected.name });
-}
-
-function duplicateSelectedDraft() {
-  const selected = getDrafts().find((draft) => draft.id === draftSelect.value);
-  if (!selected) return;
-  const duplicateName = `${selected.name} Copy`;
-  const drafts = getDrafts();
-  const draft = { id: crypto.randomUUID(), name: duplicateName, data: { ...selected.data, draftName: duplicateName } };
-  drafts.unshift(draft);
-  setDrafts(drafts);
-  renderDraftOptions();
-  draftSelect.value = draft.id;
-  draftNameInput.value = duplicateName;
-}
-
-function reuseCurrentForBatch() {
-  const reused = clearBatchFields(collectFormData());
-  reused.draftName = `${(draftNameInput.value || "Draft").trim()} New Batch`;
-  bulkPreviewRows = [];
-  setFormState(reused);
-}
-
-function deleteSelectedDraft() {
-  const filtered = getDrafts().filter((draft) => draft.id !== draftSelect.value);
-  setDrafts(filtered);
-  renderDraftOptions();
-}
-
-function saveCurrentFormula() {
-  const name = formulaNameInput.value.trim() || collectFormData().sampleName.trim() || `Formula ${new Date().toLocaleString()}`;
-  const formula = { id: crypto.randomUUID(), name, data: collectFormData() };
-  const formulas = getFormulas();
-  const existingIndex = formulas.findIndex((item) => item.name === name || item.id === formulaSelect.value);
-  if (existingIndex >= 0) formulas[existingIndex] = { ...formulas[existingIndex], name, data: formula.data };
-  else formulas.unshift(formula);
-  setFormulas(formulas);
-  renderFormulaOptions();
-  formulaSelect.value = existingIndex >= 0 ? formulas[existingIndex].id : formula.id;
-}
-
-function loadSelectedFormula() {
-  const selected = getFormulas().find((formula) => formula.id === formulaSelect.value);
-  if (!selected) return;
-  bulkPreviewRows = [];
-  setFormState({ ...clearFormulaVariableFields(selected.data), formulaName: selected.name });
-}
-
-function duplicateSelectedFormula() {
-  const selected = getFormulas().find((formula) => formula.id === formulaSelect.value);
-  if (!selected) return;
-  const duplicateName = `${selected.name} Copy`;
-  const formulas = getFormulas();
-  const formula = {
-    id: crypto.randomUUID(),
-    name: duplicateName,
-    data: { ...selected.data, formulaName: duplicateName },
-  };
-  formulas.unshift(formula);
-  setFormulas(formulas);
-  renderFormulaOptions();
-  formulaSelect.value = formula.id;
-  formulaNameInput.value = duplicateName;
-}
-
-function deleteSelectedFormula() {
-  const filtered = getFormulas().filter((formula) => formula.id !== formulaSelect.value);
-  setFormulas(filtered);
-  renderFormulaOptions();
 }
 
 function normalizeBulkKey(value) {
@@ -1365,7 +1179,7 @@ function downloadBulkTemplate() {
   ];
   const blob = new Blob([csvLines.join("\n")], { type: "text/csv;charset=utf-8;" });
   const link = document.createElement("a");
-  const formulaTag = (formulaNameInput.value.trim() || data.sampleName || "bulk-template").replace(/[^A-Za-z0-9]+/g, "_");
+  const formulaTag = (data.sampleName || data.reportNo || "bulk-template").replace(/[^A-Za-z0-9]+/g, "_");
   link.href = URL.createObjectURL(blob);
   link.download = `${formulaTag}_bulk_template.csv`;
   document.body.appendChild(link);
@@ -1502,6 +1316,10 @@ function buildKrishnaReportPage(data) {
               <span class="krishna-side-label">Sample Qty.</span>
               <span class="krishna-side-value">${getDisplayHtml(data.sampleQty)}</span>
             </div>
+            <div class="krishna-side-cell">
+              <span class="krishna-side-label">Pack Size</span>
+              <span class="krishna-side-value">${getDisplayHtml(data.packSize)}</span>
+            </div>
           </div>
           <div class="krishna-date-line">
             <span class="krishna-date-label">Analysis Completed Date</span>
@@ -1545,7 +1363,7 @@ function buildKrishnaReportPage(data) {
             <tr>
               <td>2</td>
               <td>Assay</td>
-              <td colspan="2">${getDisplayHtml(data.assayResult || "--")}</td>
+              <td colspan="2">${getDisplayHtml(data.assayResult || overallStatus.text.toUpperCase())}</td>
               <td colspan="2"></td>
             </tr>
             <tr class="krishna-comp-head">
@@ -1609,6 +1427,7 @@ function buildGenericReportPage(data) {
     ["Exp. Date", data.expDate],
     ["Batch Size", data.batchSize],
     ["Sample Qty.", data.sampleQty],
+    ["Pack Size", data.packSize],
     ["Analysis Started Date", formatDate(data.analysisStartedDate)],
     ["Analysis Completed Date", formatDate(data.analysisCompletedDate)],
     ["Reference to Protocol", data.protocolReference],
@@ -2218,15 +2037,6 @@ generateBtn.addEventListener("click", () => {
 });
 printBtn.addEventListener("click", exportCleanPdf);
 presetSelect.addEventListener("change", () => applyPreset(presetSelect.value));
-saveDraftBtn.addEventListener("click", saveCurrentDraft);
-loadDraftBtn.addEventListener("click", loadSelectedDraft);
-duplicateDraftBtn.addEventListener("click", duplicateSelectedDraft);
-reuseBatchBtn.addEventListener("click", reuseCurrentForBatch);
-deleteDraftBtn.addEventListener("click", deleteSelectedDraft);
-saveFormulaBtn.addEventListener("click", saveCurrentFormula);
-loadFormulaBtn.addEventListener("click", loadSelectedFormula);
-duplicateFormulaBtn.addEventListener("click", duplicateSelectedFormula);
-deleteFormulaBtn.addEventListener("click", deleteSelectedFormula);
 generateBulkBtn.addEventListener("click", generateBulkPreview);
 downloadBulkTemplateBtn.addEventListener("click", downloadBulkTemplate);
 clearBulkBtn.addEventListener("click", clearBulkPreview);
@@ -2256,7 +2066,7 @@ addActiveBtn.addEventListener("click", () => {
       calcPurityPercent: "100",
       calcResponseFactor: "1",
       calcClaimPercent: "",
-      useCalculatedResult: "no",
+      useCalculatedResult: "yes",
       blankRt: "",
       blankHeight: "",
       blankArea: "",
@@ -2294,7 +2104,7 @@ activeList.appendChild(
     calcPurityPercent: "100",
     calcResponseFactor: "1",
     calcClaimPercent: "2",
-    useCalculatedResult: "no",
+    useCalculatedResult: "yes",
     blankRt: "0",
     blankHeight: "0",
     blankArea: "0",
@@ -2310,6 +2120,4 @@ activeList.appendChild(
   })
 );
 updateActiveTitles();
-renderDraftOptions();
-renderFormulaOptions();
 generatePages();
