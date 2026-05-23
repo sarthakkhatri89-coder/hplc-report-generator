@@ -4,11 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HPLC Report Generator</title>
-    <link rel="stylesheet" href="./styles.css?v=20260523c" />
+    <link rel="stylesheet" href="./styles.css?v=20260523d" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   </head>
   <body>
     <main class="app-shell">
@@ -17,7 +16,7 @@
           <div>
             <h1>HPLC Report Generator</h1>
             <p class="sub">Build the report once, then generate the lab pages and chromatograms automatically.</p>
-            <p class="build-note">Build 2026.05.23 C</p>
+            <p class="build-note">Build 2026.05.23 D</p>
           </div>
           <div class="app-pill-row">
             <span class="app-pill">1 report page</span>
@@ -29,7 +28,7 @@
           <section class="section-card control-card">
             <div class="section-head">
               <h2>Workspace</h2>
-              <p>Template, export mode, and bulk tools only.</p>
+              <p>Template, export mode, and validation only.</p>
             </div>
             <div class="form-grid cols-2">
               <label>Template Preset
@@ -49,33 +48,6 @@
               <div class="validation-card">
                 <strong id="validationHeadline">Ready to validate</strong>
                 <ul id="validationList" class="validation-list"></ul>
-              </div>
-              <div class="bulk-card full-span">
-                <div class="section-head">
-                  <h2>Bulk Generation</h2>
-                  <p>Paste or upload rows, map the columns, then generate many reports from the current form. Multi-active products are supported with columns like <code>active1...</code>, <code>active2...</code>, and so on.</p>
-                </div>
-                <label class="full-span">Bulk Rows
-                  <textarea id="bulkInput" rows="7" placeholder="reportNo	sampleName	batchNo	batchSize	sampleQty	receivedOn	refDate	analysisStartedDate	analysisCompletedDate&#10;SKL-0001	Tickmac Soap	BS-001	750 KG	75 G	2026-05-18	2026-05-17	2026-05-19	2026-05-22"></textarea>
-                </label>
-                <label class="full-span">Upload Excel / CSV
-                  <input id="bulkFileInput" type="file" accept=".csv,.xlsx,.xls" />
-                </label>
-                <p id="bulkFileStatus" class="bulk-file-status">No file loaded. You can paste rows or upload a sheet.</p>
-                <p class="bulk-help">Use tab-separated rows from Excel or comma-separated values. Per-active bulk fields are for standard/test values only, like <code>active1SampleFileNo</code>, <code>active1ReferenceRt</code>, <code>active1ReferenceArea</code>, <code>active1SampleRt</code>, <code>active1SampleArea</code>. Blank graph values and lambda stay in the product setup, not in each bulk row.</p>
-                <div id="bulkMappingCard" class="bulk-mapping-card full-span" hidden>
-                  <div class="section-head">
-                    <h2>Bulk Column Mapping</h2>
-                    <p id="bulkMappingSummary">Match your Excel or CSV columns to the report fields.</p>
-                  </div>
-                  <div id="bulkMappingList" class="bulk-mapping-list"></div>
-                </div>
-                <div class="control-actions">
-                  <button id="generateBulkBtn" type="button" class="secondary-btn">Generate Bulk Preview</button>
-                  <button id="downloadBulkTemplateBtn" type="button" class="secondary-btn">Download CSV Template</button>
-                  <button id="downloadBulkTemplateXlsxBtn" type="button" class="secondary-btn">Download Excel Template</button>
-                  <button id="clearBulkBtn" type="button" class="secondary-btn">Clear Bulk</button>
-                </div>
               </div>
             </div>
           </section>
@@ -206,6 +178,6 @@
       </article>
     </template>
 
-    <script src="./app.js?v=20260523c"></script>
+    <script src="./app.js?v=20260523d"></script>
   </body>
   </html>

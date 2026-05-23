@@ -168,74 +168,6 @@ body {
   font-size: 0.86rem;
 }
 
-.bulk-card {
-  border: 1px dashed #cfe0d6;
-  border-radius: 12px;
-  padding: 12px;
-  background: #fcfffd;
-}
-
-.bulk-file-status {
-  margin: -2px 0 8px;
-  color: var(--muted);
-  font-size: 0.78rem;
-  line-height: 1.4;
-}
-
-.bulk-mapping-card {
-  border: 1px solid #dbe8df;
-  border-radius: 12px;
-  padding: 12px;
-  background: #ffffff;
-}
-
-.bulk-mapping-list {
-  display: grid;
-  gap: 10px;
-}
-
-.bulk-mapping-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
-  padding: 10px;
-  border: 1px solid #e3ece7;
-  border-radius: 10px;
-  background: #fbfefc;
-}
-
-.bulk-mapping-source {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.bulk-mapping-source strong {
-  font-size: 0.84rem;
-}
-
-.bulk-mapping-source span {
-  color: var(--muted);
-  font-size: 0.75rem;
-  line-height: 1.35;
-}
-
-.bulk-help {
-  margin: 0 0 10px;
-  color: var(--muted);
-  font-size: 0.78rem;
-  line-height: 1.45;
-}
-
-.bulk-help code {
-  font-family: Consolas, "Courier New", monospace;
-  font-size: 0.75rem;
-  background: #eef5f1;
-  border-radius: 6px;
-  padding: 1px 5px;
-}
-
 .validation-list {
   margin: 0;
   padding-left: 18px;
@@ -990,8 +922,7 @@ canvas {
   .graph-fields,
   .control-actions,
   .calc-grid,
-  .calc-summary,
-  .bulk-mapping-row {
+  .calc-summary {
     grid-template-columns: 1fr;
   }
   .editor-scroll,
