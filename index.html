@@ -4,10 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HPLC Report Generator</title>
-    <link rel="stylesheet" href="./styles.css?v=20260522f" />
+    <link rel="stylesheet" href="./styles.css?v=20260523a" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   </head>
   <body>
     <main class="app-shell">
@@ -16,7 +17,7 @@
           <div>
             <h1>HPLC Report Generator</h1>
             <p class="sub">Build the report once, then generate the lab pages and chromatograms automatically.</p>
-            <p class="build-note">Build 2026.05.22 F</p>
+            <p class="build-note">Build 2026.05.23 A</p>
           </div>
           <div class="app-pill-row">
             <span class="app-pill">1 report page</span>
@@ -82,7 +83,18 @@
                 <label class="full-span">Bulk Rows
                   <textarea id="bulkInput" rows="7" placeholder="reportNo	sampleName	batchNo	batchSize	sampleQty	receivedOn	refDate	analysisStartedDate	analysisCompletedDate&#10;SKL-0001	Tickmac Soap	BS-001	750 KG	75 G	2026-05-18	2026-05-17	2026-05-19	2026-05-22"></textarea>
                 </label>
+                <label class="full-span">Upload Excel / CSV
+                  <input id="bulkFileInput" type="file" accept=".csv,.xlsx,.xls" />
+                </label>
+                <p id="bulkFileStatus" class="bulk-file-status">No file loaded. You can paste rows or upload a sheet.</p>
                 <p class="bulk-help">Use tab-separated rows from Excel or comma-separated values. Optional per-active columns: <code>active1SampleFileNo</code>, <code>active1SampleRt</code>, <code>active1SampleArea</code>, <code>active1SampleHeight</code>.</p>
+                <div id="bulkMappingCard" class="bulk-mapping-card full-span" hidden>
+                  <div class="section-head">
+                    <h2>Bulk Column Mapping</h2>
+                    <p id="bulkMappingSummary">Match your Excel or CSV columns to the report fields.</p>
+                  </div>
+                  <div id="bulkMappingList" class="bulk-mapping-list"></div>
+                </div>
                 <div class="control-actions">
                   <button id="generateBulkBtn" type="button" class="secondary-btn">Generate Bulk Preview</button>
                   <button id="downloadBulkTemplateBtn" type="button" class="secondary-btn">Download Bulk Template</button>
@@ -217,6 +229,6 @@
       </article>
     </template>
 
-    <script src="./app.js?v=20260522f"></script>
+    <script src="./app.js?v=20260523a"></script>
   </body>
   </html>

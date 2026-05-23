@@ -22,6 +22,11 @@ const loadFormulaBtn = document.getElementById("loadFormulaBtn");
 const duplicateFormulaBtn = document.getElementById("duplicateFormulaBtn");
 const deleteFormulaBtn = document.getElementById("deleteFormulaBtn");
 const bulkInput = document.getElementById("bulkInput");
+const bulkFileInput = document.getElementById("bulkFileInput");
+const bulkFileStatus = document.getElementById("bulkFileStatus");
+const bulkMappingCard = document.getElementById("bulkMappingCard");
+const bulkMappingSummary = document.getElementById("bulkMappingSummary");
+const bulkMappingList = document.getElementById("bulkMappingList");
 const generateBulkBtn = document.getElementById("generateBulkBtn");
 const downloadBulkTemplateBtn = document.getElementById("downloadBulkTemplateBtn");
 const clearBulkBtn = document.getElementById("clearBulkBtn");
@@ -87,7 +92,80 @@ const BULK_BASE_COLUMNS = [
   "descriptionResult",
   "assayResult",
 ];
+const BULK_SKIP_VALUE = "__skip__";
+const BULK_BASE_LABELS = {
+  reportNo: "Report No.",
+  sampleName: "Sample / Product Name",
+  submittedBy: "Submitted By",
+  address: "Address",
+  batchNo: "Batch No.",
+  batchSize: "Batch Size",
+  sampleQty: "Sample Qty.",
+  receivedOn: "Received On",
+  refDate: "Ref. Date",
+  analysisStartedDate: "Analysis Started Date",
+  analysisCompletedDate: "Analysis Completed Date",
+  mfgDate: "Mfg. Date",
+  expDate: "Exp. Date",
+  mfgLicNo: "Mfg. Lic. No.",
+  refNo: "Ref. No.",
+  descriptionResult: "Description Result",
+  assayResult: "Assay Result",
+};
+const BULK_BASE_ALIASES = {
+  reportNo: ["report no", "report number", "reportno", "reportnumber"],
+  sampleName: ["sample name", "product name", "product", "sample", "productname"],
+  submittedBy: ["submitted by", "company name", "party name", "client name", "firm name"],
+  address: ["address", "submitted by address", "party address", "client address"],
+  batchNo: ["batch no", "batch number", "batch"],
+  batchSize: ["batch size", "batch wt", "batch weight"],
+  sampleQty: ["sample qty", "sample quantity", "qty", "quantity"],
+  receivedOn: ["received on", "sample received date", "received date", "sample receive date"],
+  refDate: ["ref date", "reference date"],
+  analysisStartedDate: ["analysis started date", "started date", "analysis start date"],
+  analysisCompletedDate: ["analysis completed date", "completed date", "analysis complete date", "report date"],
+  mfgDate: ["mfg date", "manufacturing date", "mfgdate"],
+  expDate: ["exp date", "expiry date", "expdate"],
+  mfgLicNo: ["mfg lic no", "mfg lic. no.", "mfg licence no", "license no", "licence no"],
+  refNo: ["ref no", "reference no", "reference number", "ref number"],
+  descriptionResult: ["description", "description result", "description observation"],
+  assayResult: ["assay", "assay result"],
+};
+const BULK_ACTIVE_SUFFIX_LABELS = {
+  SampleFileNo: "Test File No.",
+  CompositionResult: "Assay Result (% w/w)",
+  LabelClaim: "Strength Claim",
+  Limits: "Limits / Spec",
+  Method: "Method",
+  BlankRt: "Blank RT",
+  BlankHeight: "Blank Height",
+  BlankArea: "Blank Area",
+  ReferenceRt: "Standard RT",
+  ReferenceHeight: "Standard Height",
+  ReferenceArea: "Standard Area",
+  SampleRt: "Test RT",
+  SampleHeight: "Test Height",
+  SampleArea: "Test Area",
+};
+const BULK_ACTIVE_SUFFIX_ALIASES = {
+  SampleFileNo: ["sample file no", "test file no", "sample file number"],
+  CompositionResult: ["composition result", "active result", "assay result", "result"],
+  LabelClaim: ["label claim", "claim", "strength claim"],
+  Limits: ["limits", "limit", "specification", "limits specification", "spec"],
+  Method: ["method", "test method"],
+  BlankRt: ["blank rt", "blank retention time", "blank retain time"],
+  BlankHeight: ["blank height"],
+  BlankArea: ["blank area"],
+  ReferenceRt: ["reference rt", "standard rt", "std rt", "reference retention time", "standard retention time"],
+  ReferenceHeight: ["reference height", "standard height", "std height"],
+  ReferenceArea: ["reference area", "standard area", "std area"],
+  SampleRt: ["sample rt", "test rt", "actual sample rt", "test retention time", "sample retention time"],
+  SampleHeight: ["sample height", "test height", "actual sample height"],
+  SampleArea: ["sample area", "test area", "actual sample area"],
+};
 let bulkPreviewRows = [];
+let bulkImportState = null;
+let bulkColumnMapping = {};
 let currentRenderDataSet = [];
 const PRESETS = {
   krishna: {
@@ -887,6 +965,145 @@ function deleteSelectedFormula() {
   renderFormulaOptions();
 }
 
+function normalizeBulkKey(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function getBulkFieldLabel(field) {
+  if (BULK_BASE_LABELS[field]) return BULK_BASE_LABELS[field];
+  const activeMatch = String(field || "").match(/^active(\d+)([A-Za-z].*)$/);
+  if (!activeMatch) return field;
+  const activeIndex = Number(activeMatch[1]);
+  const suffix = activeMatch[2];
+  return `Active ${activeIndex} ${BULK_ACTIVE_SUFFIX_LABELS[suffix] || suffix}`;
+}
+
+function buildBulkTargetOptions(activeCount) {
+  const options = [{ value: BULK_SKIP_VALUE, label: "Skip this column" }];
+  BULK_BASE_COLUMNS.forEach((field) => {
+    options.push({ value: field, label: getBulkFieldLabel(field) });
+  });
+  for (let index = 1; index <= activeCount; index += 1) {
+    Object.keys(BULK_ACTIVE_FIELD_MAP).forEach((suffix) => {
+      const value = `active${index}${suffix}`;
+      options.push({ value, label: getBulkFieldLabel(value) });
+    });
+  }
+  return options;
+}
+
+function buildNormalizedLookup(activeCount) {
+  const lookup = new Map();
+
+  function register(normalized, target) {
+    if (normalized && !lookup.has(normalized)) lookup.set(normalized, target);
+  }
+
+  BULK_BASE_COLUMNS.forEach((field) => {
+    register(normalizeBulkKey(field), field);
+    register(normalizeBulkKey(getBulkFieldLabel(field)), field);
+    (BULK_BASE_ALIASES[field] || []).forEach((alias) => register(normalizeBulkKey(alias), field));
+  });
+
+  for (let index = 1; index <= activeCount; index += 1) {
+    Object.keys(BULK_ACTIVE_FIELD_MAP).forEach((suffix) => {
+      const target = `active${index}${suffix}`;
+      register(normalizeBulkKey(target), target);
+      register(normalizeBulkKey(getBulkFieldLabel(target)), target);
+      (BULK_ACTIVE_SUFFIX_ALIASES[suffix] || []).forEach((alias) => {
+        register(normalizeBulkKey(`active ${index} ${alias}`), target);
+        register(normalizeBulkKey(`a${index} ${alias}`), target);
+        register(normalizeBulkKey(`${alias} ${index}`), target);
+      });
+    });
+  }
+
+  return lookup;
+}
+
+function buildAutoBulkMapping(headers, activeCount) {
+  const lookup = buildNormalizedLookup(activeCount);
+  const mapping = {};
+  headers.forEach((header) => {
+    const normalizedHeader = normalizeBulkKey(header);
+    mapping[header] = lookup.get(normalizedHeader) || BULK_SKIP_VALUE;
+  });
+  return mapping;
+}
+
+function summarizeBulkMapping(mapping) {
+  const selectedTargets = Object.values(mapping).filter((value) => value && value !== BULK_SKIP_VALUE);
+  const duplicates = [...new Set(selectedTargets.filter((value, index) => selectedTargets.indexOf(value) !== index))];
+  return {
+    assignedCount: selectedTargets.length,
+    duplicates,
+  };
+}
+
+function renderBulkMapping() {
+  if (!bulkImportState?.headers?.length) {
+    bulkMappingCard.hidden = true;
+    bulkMappingList.innerHTML = "";
+    return;
+  }
+
+  const activeCount = Math.max(collectActives().length, 1);
+  const options = buildBulkTargetOptions(activeCount);
+  const previousMapping = { ...bulkColumnMapping };
+  const autoMapping = buildAutoBulkMapping(bulkImportState.headers, activeCount);
+
+  bulkImportState.headers.forEach((header) => {
+    const previousValue = previousMapping[header];
+    const hasOption = options.some((option) => option.value === previousValue);
+    bulkColumnMapping[header] = hasOption ? previousValue : autoMapping[header];
+  });
+
+  const { assignedCount, duplicates } = summarizeBulkMapping(bulkColumnMapping);
+  bulkMappingSummary.textContent = `${bulkImportState.sourceLabel} with ${bulkImportState.rows.length} row(s) and ${bulkImportState.headers.length} column(s). Map only the fields you want to override.`;
+
+  bulkMappingList.innerHTML = "";
+  bulkImportState.headers.forEach((header) => {
+    const row = document.createElement("div");
+    row.className = "bulk-mapping-row";
+
+    const source = document.createElement("div");
+    source.className = "bulk-mapping-source";
+    source.innerHTML = `
+      <strong>${escapeHtml(header)}</strong>
+      <span>${escapeHtml((bulkImportState.rows[0]?.[header] || "").slice(0, 80) || "No sample value in first row")}</span>
+    `;
+
+    const label = document.createElement("label");
+    label.textContent = "Map To";
+    const select = document.createElement("select");
+    select.dataset.bulkHeader = header;
+    select.innerHTML = options
+      .map(
+        (option) =>
+          `<option value="${escapeHtml(option.value)}"${option.value === bulkColumnMapping[header] ? " selected" : ""}>${escapeHtml(option.label)}</option>`
+      )
+      .join("");
+    select.addEventListener("change", () => {
+      bulkColumnMapping[header] = select.value;
+      renderBulkMapping();
+    });
+    label.appendChild(select);
+
+    row.append(source, label);
+    bulkMappingList.appendChild(row);
+  });
+
+  bulkMappingCard.hidden = false;
+  bulkFileStatus.textContent =
+    duplicates.length > 0
+      ? `Mapping needs attention: ${duplicates.length} target field(s) are selected more than once.`
+      : assignedCount > 0
+      ? `${assignedCount} column(s) mapped and ready for bulk preview.`
+      : "No columns are mapped yet. Choose at least one target field.";
+}
+
 function detectBulkDelimiter(headerLine) {
   return headerLine.includes("\t") ? "\t" : ",";
 }
@@ -921,7 +1138,7 @@ function parseBulkRows(input) {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  if (lines.length < 2) return { rows: [], error: "Paste a header row and at least one bulk data row." };
+  if (lines.length < 2) return { headers: [], rows: [], error: "Paste a header row and at least one bulk data row." };
 
   const delimiter = detectBulkDelimiter(lines[0]);
   const headers = parseDelimitedLine(lines[0], delimiter);
@@ -933,7 +1150,95 @@ function parseBulkRows(input) {
     });
     return row;
   });
-  return { rows, error: "" };
+  return { headers, rows, error: "" };
+}
+
+function parseBulkMatrix(matrix) {
+  const rows = (matrix || [])
+    .map((row) => row.map((cell) => String(cell ?? "").trim()))
+    .filter((row) => row.some((cell) => cell !== ""));
+  if (rows.length < 2) return { headers: [], rows: [], error: "Upload a sheet with a header row and at least one data row." };
+  const headers = rows[0];
+  const parsedRows = rows.slice(1).map((values) => {
+    const row = {};
+    headers.forEach((header, index) => {
+      row[header] = values[index] ?? "";
+    });
+    return row;
+  });
+  return { headers, rows: parsedRows, error: "" };
+}
+
+function setBulkImportState(parsed, sourceLabel) {
+  bulkImportState = {
+    headers: parsed.headers || [],
+    rows: parsed.rows || [],
+    sourceLabel,
+  };
+  bulkColumnMapping = buildAutoBulkMapping(bulkImportState.headers, Math.max(collectActives().length, 1));
+  renderBulkMapping();
+}
+
+async function handleBulkFileSelection() {
+  const [file] = bulkFileInput.files || [];
+  if (!file) {
+    bulkImportState = null;
+    bulkColumnMapping = {};
+    renderBulkMapping();
+    bulkFileStatus.textContent = "No file loaded. You can paste rows or upload a sheet.";
+    return;
+  }
+
+  try {
+    let parsed;
+    const fileName = file.name || "bulk-upload";
+    if (/\.csv$/i.test(fileName)) {
+      parsed = parseBulkRows(await file.text());
+    } else {
+      if (!window.XLSX) {
+        window.alert("Excel import library did not load. Please refresh and try again.");
+        return;
+      }
+      const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const firstSheetName = workbook.SheetNames[0];
+      const matrix = window.XLSX.utils.sheet_to_json(workbook.Sheets[firstSheetName], {
+        header: 1,
+        defval: "",
+        raw: false,
+        blankrows: false,
+      });
+      parsed = parseBulkMatrix(matrix);
+    }
+
+    if (parsed.error) {
+      window.alert(parsed.error);
+      return;
+    }
+
+    setBulkImportState(parsed, `Loaded file: ${file.name}`);
+  } catch (error) {
+    window.alert(`Could not read bulk file. ${error?.message || "Please try another file."}`);
+  }
+}
+
+function getParsedBulkSource() {
+  if (bulkImportState?.rows?.length) return bulkImportState;
+  const parsed = parseBulkRows(bulkInput.value);
+  if (parsed.error) return parsed;
+  setBulkImportState(parsed, "Pasted bulk rows");
+  return bulkImportState;
+}
+
+function applyBulkMapping(rows, mapping) {
+  return rows.map((row) => {
+    const mappedRow = {};
+    Object.entries(row).forEach(([header, value]) => {
+      const target = mapping[header];
+      if (!target || target === BULK_SKIP_VALUE) return;
+      mappedRow[target] = value;
+    });
+    return mappedRow;
+  });
 }
 
 function applyBulkRowToData(baseData, row) {
@@ -965,18 +1270,34 @@ function applyBulkRowToData(baseData, row) {
 }
 
 function generateBulkPreview() {
-  const parsed = parseBulkRows(bulkInput.value);
+  const parsed = getParsedBulkSource();
   if (parsed.error) {
     window.alert(parsed.error);
     return;
   }
-  bulkPreviewRows = parsed.rows;
+
+  const { assignedCount, duplicates } = summarizeBulkMapping(bulkColumnMapping);
+  if (!assignedCount) {
+    window.alert("Map at least one bulk upload column before generating the preview.");
+    return;
+  }
+  if (duplicates.length) {
+    window.alert(`Some bulk columns are mapped to the same target field: ${duplicates.join(", ")}. Please fix the mapping first.`);
+    return;
+  }
+
+  bulkPreviewRows = applyBulkMapping(parsed.rows, bulkColumnMapping);
   generatePages();
 }
 
 function clearBulkPreview() {
   bulkInput.value = "";
+  bulkFileInput.value = "";
   bulkPreviewRows = [];
+  bulkImportState = null;
+  bulkColumnMapping = {};
+  bulkFileStatus.textContent = "No file loaded. You can paste rows or upload a sheet.";
+  renderBulkMapping();
   generatePages();
 }
 
@@ -1880,6 +2201,7 @@ function generatePages() {
   else updatePreviewSummary(baseData.actives.length);
   refreshActiveCardStates(baseData);
   updateValidationPanel(baseData);
+  if (bulkImportState?.headers?.length) renderBulkMapping();
   dataSet.forEach((data) => {
     previewRoot.appendChild(buildReportPage(data));
     data.actives.forEach((active, activeIndex) => {
@@ -1908,6 +2230,17 @@ deleteFormulaBtn.addEventListener("click", deleteSelectedFormula);
 generateBulkBtn.addEventListener("click", generateBulkPreview);
 downloadBulkTemplateBtn.addEventListener("click", downloadBulkTemplate);
 clearBulkBtn.addEventListener("click", clearBulkPreview);
+bulkFileInput.addEventListener("change", handleBulkFileSelection);
+bulkInput.addEventListener("input", () => {
+  if (!bulkFileInput.files?.length) {
+    bulkImportState = null;
+    bulkColumnMapping = {};
+    renderBulkMapping();
+    bulkFileStatus.textContent = bulkInput.value.trim()
+      ? "Pasted rows ready. Click Generate Bulk Preview to review or adjust mapping."
+      : "No file loaded. You can paste rows or upload a sheet.";
+  }
+});
 addActiveBtn.addEventListener("click", () => {
   activeList.appendChild(
     createActiveCard({
