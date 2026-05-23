@@ -9,10 +9,20 @@ const pageSummary = document.getElementById("pageSummary");
 const previewSummary = document.getElementById("previewSummary");
 const presetSelect = document.getElementById("presetSelect");
 const exportModeSelect = document.getElementById("exportMode");
+const includeCalculationSheetsToggle = document.getElementById("includeCalculationSheets");
 const validationHeadline = document.getElementById("validationHeadline");
 const validationList = document.getElementById("validationList");
+const loginOverlay = document.getElementById("loginOverlay");
+const loginForm = document.getElementById("loginForm");
+const loginUsername = document.getElementById("loginUsername");
+const loginPassword = document.getElementById("loginPassword");
+const loginError = document.getElementById("loginError");
+const logoutBtn = document.getElementById("logoutBtn");
 const defaultDocumentTitle = document.title;
 let currentRenderDataSet = [];
+const AUTH_USERNAME = "ADMINHPLC";
+const AUTH_PASSWORD = "HPLC@2027";
+const AUTH_STORAGE_KEY = "hplc-auth-session-v1";
 const PRESETS = {
   krishna: {
     graphHeader: "SHREE KRISHNA ANALYTICAL SERVICES PVT. LTD.",
@@ -111,7 +121,7 @@ function createActiveCard(values = {}) {
     <div class="active-card-header">
       <div class="active-card-title">
         <h3>Active</h3>
-        <p>One active creates Blank, Standard, Test, and calculation pages.</p>
+        <p>One active creates Blank, Standard, and Test chromatogram pages.</p>
       </div>
       <div class="active-card-actions">
         <button type="button" class="toggle-btn">Collapse</button>
@@ -128,13 +138,19 @@ function createActiveCard(values = {}) {
       <label>Test File No.<input type="number" step="1" min="1" name="sampleFileNo" value="${escapeHtml(values.sampleFileNo || "")}" /></label>
       <div></div>
 
-      <div class="calc-card full-span">
+      <section class="calc-card full-span">
         <div class="calc-header">
           <div>
-            <h4>Calculation Engine</h4>
-            <p>Work in both directions: calculate assay from observed peaks, or enter a desired assay and let the app plan a practical test peak set.</p>
+            <h4>Assay Calculation</h4>
+            <p>Use observed test values directly, or switch on auto-calculation for assay resolution.</p>
           </div>
           <span class="calc-status">Waiting</span>
+        </div>
+        <div class="calc-toggle-row">
+          <label class="toggle-field">
+            <span>Use Auto Assay Calculation</span>
+            <input type="checkbox" name="useCalculatedResult" ${values.useCalculatedResult === "no" ? "" : "checked"} />
+          </label>
         </div>
         <div class="calc-summary">
           <div class="calc-stat"><span>Calculated Assay</span><strong data-calc-result>--</strong></div>
@@ -156,12 +172,6 @@ function createActiveCard(values = {}) {
           <label>Std Purity %<input type="number" step="0.01" name="calcPurityPercent" value="${escapeHtml(values.calcPurityPercent || "100")}" /></label>
           <label>Response Factor<input type="number" step="0.0001" name="calcResponseFactor" value="${escapeHtml(values.calcResponseFactor || "1")}" /></label>
           <label>Claim % Override<input type="number" step="0.0001" name="calcClaimPercent" value="${escapeHtml(values.calcClaimPercent || "")}" /></label>
-          <label>Use Calculated Result
-            <select name="useCalculatedResult">
-              <option value="yes" ${values.useCalculatedResult === "no" ? "" : "selected"}>Yes</option>
-              <option value="no" ${values.useCalculatedResult === "no" ? "selected" : ""}>No</option>
-            </select>
-          </label>
         </div>
         <div class="calc-table-wrap">
           <table class="calc-table">
@@ -179,7 +189,7 @@ function createActiveCard(values = {}) {
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
 
       <section class="graph-group full-span">
         <div class="graph-group-head">
@@ -283,7 +293,7 @@ function collectActives() {
     calcPurityPercent: card.querySelector('[name="calcPurityPercent"]').value,
     calcResponseFactor: card.querySelector('[name="calcResponseFactor"]').value,
     calcClaimPercent: card.querySelector('[name="calcClaimPercent"]').value,
-    useCalculatedResult: card.querySelector('[name="useCalculatedResult"]').value,
+    useCalculatedResult: card.querySelector('[name="useCalculatedResult"]').checked ? "yes" : "no",
     blankRt: card.querySelector('[name="blankRt"]').value,
     blankHeight: card.querySelector('[name="blankHeight"]').value,
     blankArea: card.querySelector('[name="blankArea"]').value,
@@ -308,12 +318,15 @@ function updateActiveTitles() {
   });
 }
 
-function updatePreviewSummary(activeCount) {
-  const totalPages = 1 + activeCount * 4;
+function updatePreviewSummary(activeCount, includeCalculationSheets) {
+  const calcPages = includeCalculationSheets ? activeCount : 0;
+  const totalPages = 1 + activeCount * 3 + calcPages;
   const activeLabel = `${activeCount} active${activeCount === 1 ? "" : "s"}`;
   const pageLabel = `${totalPages} page${totalPages === 1 ? "" : "s"}`;
   pageSummary.textContent = `${activeLabel}, ${pageLabel}`;
-  previewSummary.textContent = `${activeLabel} will generate ${pageLabel}: 1 report page plus ${activeCount * 3} graph pages and ${activeCount} calculation pages.`;
+  previewSummary.textContent = includeCalculationSheets
+    ? `${activeLabel} will generate ${pageLabel}: 1 report page, ${activeCount * 3} graph pages, and ${calcPages} calculation pages.`
+    : `${activeLabel} will generate ${pageLabel}: 1 report page and ${activeCount * 3} graph pages.`;
 }
 
 function getPrintTitle() {
@@ -337,6 +350,19 @@ function buildExportFilename() {
   const dateTag = (data.analysisCompletedDate || data.receivedOn || "").replace(/-/g, "") || formatDateFromDate(getGraphDate(data)).replace(/\//g, "");
   const modeTag = exportModeSelect.value === "report" ? "report" : exportModeSelect.value === "graphs" ? "graphs" : "full";
   return `${sampleName}_${reportNo}_${dateTag}_${modeTag}.pdf`.replace(/\s+/g, "_");
+}
+
+function isAuthenticated() {
+  return window.sessionStorage.getItem(AUTH_STORAGE_KEY) === "ok";
+}
+
+function applyAuthState() {
+  const authed = isAuthenticated();
+  document.body.classList.toggle("auth-ready", authed);
+  document.body.classList.toggle("auth-locked", !authed);
+  if (!authed) {
+    loginUsername.focus();
+  }
 }
 
 function syncCanvasContent(sourcePage, clonedPage) {
@@ -372,7 +398,11 @@ async function exportCleanPdf() {
     const mode = exportModeSelect.value;
     const pages = [...previewRoot.children];
     const exportPages =
-      mode === "report" ? pages.slice(0, 1) : mode === "graphs" ? pages.slice(1) : pages;
+      mode === "report"
+        ? pages.slice(0, 1)
+        : mode === "graphs"
+        ? pages.filter((page) => page.classList.contains("lab-graph-page"))
+        : pages;
     if (!exportPages.length) {
       window.alert("There are no pages to export yet.");
       return;
@@ -472,6 +502,7 @@ function collectFormData() {
     actives: collectActives(),
     preset: presetSelect.value,
     exportMode: exportModeSelect.value,
+    includeCalculationSheets: includeCalculationSheetsToggle.checked ? "yes" : "no",
   };
 }
 
@@ -747,6 +778,7 @@ function setFormState(data) {
   });
   presetSelect.value = data.preset || presetSelect.value;
   exportModeSelect.value = data.exportMode || exportModeSelect.value;
+  includeCalculationSheetsToggle.checked = data.includeCalculationSheets !== "no";
   activeList.innerHTML = "";
   (data.actives || []).forEach((active) => {
     activeList.appendChild(
@@ -1674,11 +1706,34 @@ function buildCalculationPage(data, active, activeIndex) {
   return page;
 }
 
+function handleLogin(event) {
+  event.preventDefault();
+  const username = loginUsername.value.trim();
+  const password = loginPassword.value;
+  if (username === AUTH_USERNAME && password === AUTH_PASSWORD) {
+    window.sessionStorage.setItem(AUTH_STORAGE_KEY, "ok");
+    loginError.textContent = "";
+    loginPassword.value = "";
+    applyAuthState();
+    generatePages();
+    return;
+  }
+  loginError.textContent = "Invalid username or password.";
+}
+
+function handleLogout() {
+  window.sessionStorage.removeItem(AUTH_STORAGE_KEY);
+  loginForm.reset();
+  loginError.textContent = "";
+  applyAuthState();
+}
+
 function generatePages() {
   const data = collectFormData();
   currentRenderDataSet = [data];
   previewRoot.innerHTML = "";
-  updatePreviewSummary(data.actives.length);
+  const includeCalculationSheets = data.includeCalculationSheets !== "no";
+  updatePreviewSummary(data.actives.length, includeCalculationSheets);
   refreshActiveCardStates(data);
   updateValidationPanel(data);
   previewRoot.appendChild(buildReportPage(data));
@@ -1686,13 +1741,18 @@ function generatePages() {
     previewRoot.appendChild(buildGraphPage(data, active, "blank", activeIndex));
     previewRoot.appendChild(buildGraphPage(data, active, "reference", activeIndex));
     previewRoot.appendChild(buildGraphPage(data, active, "sample", activeIndex));
-    previewRoot.appendChild(buildCalculationPage(data, active, activeIndex));
+    if (includeCalculationSheets) {
+      previewRoot.appendChild(buildCalculationPage(data, active, activeIndex));
+    }
   });
 }
 
 generateBtn.addEventListener("click", generatePages);
 printBtn.addEventListener("click", exportCleanPdf);
 presetSelect.addEventListener("change", () => applyPreset(presetSelect.value));
+includeCalculationSheetsToggle.addEventListener("change", generatePages);
+loginForm.addEventListener("submit", handleLogin);
+logoutBtn.addEventListener("click", handleLogout);
 addActiveBtn.addEventListener("click", () => {
   activeList.appendChild(
     createActiveCard({
@@ -1766,4 +1826,7 @@ activeList.appendChild(
   })
 );
 updateActiveTitles();
-generatePages();
+applyAuthState();
+if (isAuthenticated()) {
+  generatePages();
+}

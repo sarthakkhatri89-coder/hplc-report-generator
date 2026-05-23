@@ -24,6 +24,142 @@ body {
   color: var(--ink);
 }
 
+body.auth-locked {
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+body.auth-locked .app-shell {
+  display: none;
+}
+
+body.auth-ready .login-overlay {
+  display: none;
+}
+
+.login-overlay {
+  position: relative;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #081313;
+}
+
+.login-backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(6, 17, 18, 0.72), rgba(6, 17, 18, 0.76)),
+    radial-gradient(circle at top left, rgba(57, 168, 121, 0.24), transparent 24%),
+    radial-gradient(circle at right center, rgba(61, 124, 255, 0.18), transparent 24%),
+    url("https://images.pexels.com/photos/8940355/pexels-photo-8940355.jpeg?auto=compress&cs=tinysrgb&w=1600") center/cover no-repeat;
+  filter: saturate(0.95);
+  transform: scale(1.03);
+}
+
+.login-panel {
+  position: relative;
+  z-index: 1;
+  width: min(1080px, calc(100vw - 36px));
+  display: grid;
+  grid-template-columns: 1.1fr 420px;
+  gap: 28px;
+  align-items: stretch;
+}
+
+.login-copy,
+.login-card {
+  border: 1px solid rgba(212, 236, 225, 0.14);
+  border-radius: 22px;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.24);
+}
+
+.login-copy {
+  padding: 40px;
+  background: linear-gradient(180deg, rgba(10, 27, 27, 0.72), rgba(10, 27, 27, 0.48));
+  color: #eefaf4;
+  display: grid;
+  align-content: center;
+  gap: 14px;
+}
+
+.login-kicker {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8fddbb;
+}
+
+.login-copy h1,
+.login-card h2 {
+  margin: 0;
+}
+
+.login-copy h1 {
+  font-size: clamp(2.2rem, 4vw, 3.4rem);
+  line-height: 1.02;
+}
+
+.login-copy p,
+.login-card p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.login-copy p {
+  max-width: 44ch;
+  color: rgba(238, 250, 244, 0.86);
+  font-size: 1rem;
+}
+
+.login-chip-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.login-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(182, 232, 209, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #dbf5e8;
+}
+
+.login-card {
+  padding: 28px;
+  background: rgba(248, 252, 250, 0.94);
+  display: grid;
+  gap: 14px;
+  align-content: center;
+}
+
+.login-card h2 {
+  font-size: 1.45rem;
+  color: #183328;
+}
+
+.login-card p {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
+
+.login-error {
+  min-height: 18px;
+  color: #8a2f2f;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 520px 1fr;
@@ -51,6 +187,14 @@ body {
   gap: 12px;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--line);
+}
+
+.app-header-tools {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .form-panel h1 {
@@ -162,6 +306,28 @@ body {
   display: grid;
   gap: 8px;
   min-height: 112px;
+}
+
+.toggle-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 1px solid #dbe7df;
+  border-radius: 12px;
+  background: #fbfefc;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #234535;
+}
+
+.toggle-field input[type="checkbox"] {
+  width: 46px;
+  height: 26px;
+  margin: 0;
+  accent-color: var(--brand);
+  cursor: pointer;
 }
 
 .validation-card strong {
@@ -421,6 +587,11 @@ button:hover {
   color: var(--muted);
   font-size: 0.76rem;
   margin-top: 4px;
+}
+
+.calc-toggle-row {
+  display: flex;
+  justify-content: flex-start;
 }
 
 .calc-status {
@@ -1051,6 +1222,16 @@ canvas {
   .calc-summary,
   .calculation-top-grid {
     grid-template-columns: 1fr;
+  }
+  .login-panel {
+    grid-template-columns: 1fr;
+  }
+  .login-copy {
+    min-height: 280px;
+  }
+  .app-header-tools {
+    flex-direction: column;
+    align-items: flex-start;
   }
   .editor-scroll,
   .preview-panel {

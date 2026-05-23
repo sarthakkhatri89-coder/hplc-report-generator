@@ -4,23 +4,55 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HPLC Report Generator</title>
-    <link rel="stylesheet" href="./styles.css?v=20260523h" />
+    <link rel="stylesheet" href="./styles.css?v=20260523k" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   </head>
-  <body>
+  <body class="auth-locked">
+    <section class="login-overlay" id="loginOverlay">
+      <div class="login-backdrop"></div>
+      <div class="login-panel">
+        <div class="login-copy">
+          <div class="login-kicker">Secure Lab Access</div>
+          <h1>HPLC Report Generator</h1>
+          <p>Authorized laboratory access for chromatogram reporting, assay calculation, and printable QA documentation.</p>
+          <div class="login-chip-row">
+            <span class="login-chip">HPLC</span>
+            <span class="login-chip">Chromatography</span>
+            <span class="login-chip">Lab QA</span>
+          </div>
+        </div>
+        <form id="loginForm" class="login-card">
+          <div>
+            <h2>Sign In</h2>
+            <p>Restricted access for internal report generation only.</p>
+          </div>
+          <label>Username
+            <input id="loginUsername" autocomplete="username" />
+          </label>
+          <label>Password
+            <input id="loginPassword" type="password" autocomplete="current-password" />
+          </label>
+          <button id="loginBtn" type="submit">Access Workspace</button>
+          <p id="loginError" class="login-error" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
     <main class="app-shell">
       <section class="panel form-panel">
         <div class="app-header">
           <div>
             <h1>HPLC Report Generator</h1>
             <p class="sub">Build the report once, then generate the lab pages and chromatograms automatically.</p>
-            <p class="build-note">Build 2026.05.23 H</p>
+            <p class="build-note">Build 2026.05.23 K</p>
           </div>
-          <div class="app-pill-row">
+          <div class="app-header-tools">
+            <div class="app-pill-row">
             <span class="app-pill">1 report page</span>
-            <span class="app-pill">3 graphs + calc page per active</span>
+            <span class="app-pill">3 graphs per active</span>
+            </div>
+            <button id="logoutBtn" type="button" class="secondary-btn">Logout</button>
           </div>
         </div>
 
@@ -44,6 +76,10 @@
                   <option value="report">Report Page Only</option>
                   <option value="graphs">Graph Pages Only</option>
                 </select>
+              </label>
+              <label class="toggle-field full-span">
+                <span>Include Calculation Sheets With Report</span>
+                <input id="includeCalculationSheets" name="includeCalculationSheets" type="checkbox" checked />
               </label>
               <div class="validation-card">
                 <strong id="validationHeadline">Ready to validate</strong>
@@ -112,7 +148,7 @@
             <div class="active-header">
               <div>
                 <h2>Active Ingredients</h2>
-                <p class="section-help">Each active creates a Blank, Standard, Test, and calculation page set.</p>
+                <p class="section-help">Each active creates Blank, Standard, and Test graph pages, with an optional calculation sheet.</p>
               </div>
               <button id="addActiveBtn" type="button" class="secondary-btn">Add Active</button>
             </div>
@@ -178,6 +214,6 @@
       </article>
     </template>
 
-    <script src="./app.js?v=20260523h"></script>
+    <script src="./app.js?v=20260523k"></script>
   </body>
   </html>
