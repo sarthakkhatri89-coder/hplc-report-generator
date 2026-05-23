@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HPLC Report Generator</title>
-    <link rel="stylesheet" href="./styles.css?v=20260523b" />
+    <link rel="stylesheet" href="./styles.css?v=20260523c" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -17,7 +17,7 @@
           <div>
             <h1>HPLC Report Generator</h1>
             <p class="sub">Build the report once, then generate the lab pages and chromatograms automatically.</p>
-            <p class="build-note">Build 2026.05.23 B</p>
+            <p class="build-note">Build 2026.05.23 C</p>
           </div>
           <div class="app-pill-row">
             <span class="app-pill">1 report page</span>
@@ -72,7 +72,8 @@
                 </div>
                 <div class="control-actions">
                   <button id="generateBulkBtn" type="button" class="secondary-btn">Generate Bulk Preview</button>
-                  <button id="downloadBulkTemplateBtn" type="button" class="secondary-btn">Download Bulk Template</button>
+                  <button id="downloadBulkTemplateBtn" type="button" class="secondary-btn">Download CSV Template</button>
+                  <button id="downloadBulkTemplateXlsxBtn" type="button" class="secondary-btn">Download Excel Template</button>
                   <button id="clearBulkBtn" type="button" class="secondary-btn">Clear Bulk</button>
                 </div>
               </div>
@@ -205,6 +206,6 @@
       </article>
     </template>
 
-    <script src="./app.js?v=20260523b"></script>
+    <script src="./app.js?v=20260523c"></script>
   </body>
   </html>

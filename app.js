@@ -16,6 +16,7 @@ const bulkMappingSummary = document.getElementById("bulkMappingSummary");
 const bulkMappingList = document.getElementById("bulkMappingList");
 const generateBulkBtn = document.getElementById("generateBulkBtn");
 const downloadBulkTemplateBtn = document.getElementById("downloadBulkTemplateBtn");
+const downloadBulkTemplateXlsxBtn = document.getElementById("downloadBulkTemplateXlsxBtn");
 const clearBulkBtn = document.getElementById("clearBulkBtn");
 const exportModeSelect = document.getElementById("exportMode");
 const validationHeadline = document.getElementById("validationHeadline");
@@ -1173,6 +1174,29 @@ function downloadBulkTemplate() {
   URL.revokeObjectURL(link.href);
 }
 
+function downloadBulkTemplateXlsx() {
+  const data = collectFormData();
+  const activeCount = Math.max(data.actives.length, 1);
+  const columns = buildBulkTemplateColumns(activeCount);
+  const sampleRow = buildBulkTemplateRow(data);
+  const rows = [
+    columns,
+    columns.map((column) => sampleRow[column] ?? ""),
+  ];
+  const formulaTag = (data.sampleName || data.reportNo || "bulk-template").replace(/[^A-Za-z0-9]+/g, "_");
+
+  if (!window.XLSX) {
+    window.alert("Excel export library did not load. Please refresh and try again.");
+    return;
+  }
+
+  const workbook = window.XLSX.utils.book_new();
+  const worksheet = window.XLSX.utils.aoa_to_sheet(rows);
+  worksheet["!cols"] = columns.map((column) => ({ wch: Math.max(column.length + 2, 16) }));
+  window.XLSX.utils.book_append_sheet(workbook, worksheet, "Bulk Upload");
+  window.XLSX.writeFile(workbook, `${formulaTag}_bulk_template.xlsx`);
+}
+
 function addMetaRow(tbody, label, value) {
   const tr = document.createElement("tr");
   const td1 = document.createElement("td");
@@ -2024,6 +2048,7 @@ printBtn.addEventListener("click", exportCleanPdf);
 presetSelect.addEventListener("change", () => applyPreset(presetSelect.value));
 generateBulkBtn.addEventListener("click", generateBulkPreview);
 downloadBulkTemplateBtn.addEventListener("click", downloadBulkTemplate);
+downloadBulkTemplateXlsxBtn.addEventListener("click", downloadBulkTemplateXlsx);
 clearBulkBtn.addEventListener("click", clearBulkPreview);
 bulkFileInput.addEventListener("change", handleBulkFileSelection);
 bulkInput.addEventListener("input", () => {
