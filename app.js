@@ -567,8 +567,10 @@ function getResolvedSamplePeak(active) {
   const referenceRt = toNumber(active.referenceRt, 0);
   const referenceHeight = Math.max(toNumber(active.referenceHeight, 0), estimateHeightFromArea(active.referenceArea));
   const manualSampleArea = toNumber(active.sampleArea, 0);
-  const manualSampleHeight = Math.max(toNumber(active.sampleHeight, 0), estimateHeightFromArea(active.sampleArea));
-  const manualSampleRt = toNumber(active.sampleRt, referenceRt || 0);
+  const manualSampleHeight = hasMeaningfulValue(active.sampleHeight)
+    ? Math.max(toNumber(active.sampleHeight, 0), 0)
+    : estimateHeightFromArea(active.sampleArea);
+  const manualSampleRt = hasMeaningfulValue(active.sampleRt) ? Math.max(toNumber(active.sampleRt, 0), 0) : Math.max(referenceRt, 0);
   const desiredAssay = toNumber(active.desiredAssayPercent, NaN);
   const seed = getPracticalVariationSeed(active);
 
