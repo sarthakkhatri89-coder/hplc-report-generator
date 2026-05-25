@@ -416,10 +416,14 @@ async function exportCleanPdf() {
       sandbox.appendChild(clonedPage);
       document.body.appendChild(sandbox);
 
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+
+      const isReportPage = page.classList.contains("krishna-report-page");
+      const deviceScale = window.devicePixelRatio || 1;
+      const captureScale = Math.min(isReportPage ? 2.2 : 1.8, Math.max(1.35, deviceScale));
 
       const canvas = await window.html2canvas(clonedPage, {
-        scale: 3,
+        scale: captureScale,
         useCORS: true,
         backgroundColor: "#ffffff",
         width: clonedPage.offsetWidth,
@@ -430,9 +434,9 @@ async function exportCleanPdf() {
         scrollY: 0,
       });
 
-      const imageData = canvas.toDataURL("image/png");
+      const imageData = canvas.toDataURL("image/jpeg", 0.92);
       if (index > 0) pdf.addPage();
-      pdf.addImage(imageData, "PNG", 0, 0, pdfWidth, pdfHeight, undefined, "FAST");
+      pdf.addImage(imageData, "JPEG", 0, 0, pdfWidth, pdfHeight, undefined, "FAST");
       sandbox.remove();
     }
 
@@ -553,6 +557,7 @@ function getAutoBlankProfile(active) {
 
 function getResolvedSamplePeak(active) {
   const mode = active.calcMode || "assay-from-graph";
+  const autoCalcEnabled = active.useCalculatedResult !== "no";
   const claimPercent = toNumber(hasMeaningfulValue(active.calcClaimPercent) ? active.calcClaimPercent : extractFirstNumber(active.labelClaim), 0);
   const stdFactor = Math.max(toNumber(active.calcStandardFactor, 1), 0.000001);
   const sampleFactor = Math.max(toNumber(active.calcSampleFactor, 1), 0.000001);
@@ -567,7 +572,7 @@ function getResolvedSamplePeak(active) {
   const desiredAssay = toNumber(active.desiredAssayPercent, NaN);
   const seed = getPracticalVariationSeed(active);
 
-  if (mode !== "target-assay" || !Number.isFinite(desiredAssay) || desiredAssay <= 0 || stdArea <= 0 || claimPercent <= 0) {
+  if (!autoCalcEnabled || mode !== "target-assay" || !Number.isFinite(desiredAssay) || desiredAssay <= 0 || stdArea <= 0 || claimPercent <= 0) {
     return {
       mode,
       rt: manualSampleRt,
@@ -611,10 +616,11 @@ function calculateActiveMetrics(active) {
       : null;
   const manualAssay = extractFirstNumber(active.compositionResult);
   const desiredAssay = Number.isFinite(resolvedSamplePeak.desiredAssay) ? resolvedSamplePeak.desiredAssay : null;
+  const autoCalcEnabled = active.useCalculatedResult !== "no";
   const finalAssay =
-    active.calcMode === "target-assay" && Number.isFinite(desiredAssay)
+    autoCalcEnabled && active.calcMode === "target-assay" && Number.isFinite(desiredAssay)
       ? desiredAssay
-      : active.useCalculatedResult === "yes" && Number.isFinite(calculatedAssay)
+      : autoCalcEnabled && Number.isFinite(calculatedAssay)
       ? calculatedAssay
       : manualAssay;
   const limitRange = parseLimitRange(active.limits);
@@ -709,6 +715,7 @@ function validateData(data) {
   data.actives.forEach((active, index) => {
     const name = active.compositionName || `Active ${index + 1}`;
     const metrics = calculateActiveMetrics(active);
+    const autoCalcEnabled = active.useCalculatedResult !== "no";
     if (!active.lambda) issues.push({ level: "warning", text: `${name}: Lambda is missing.` });
     if (metrics.rtDelta !== null && metrics.rtDelta > 0.2) {
       issues.push({ level: "warning", text: `${name}: Standard and test RT differ by ${metrics.rtDelta.toFixed(3)} min.` });
@@ -716,10 +723,10 @@ function validateData(data) {
     if (metrics.status === "fail") {
       issues.push({ level: "error", text: `${name}: Assay is outside the configured limit range.` });
     }
-    if (active.calcMode === "target-assay" && !Number.isFinite(metrics.resolvedSamplePeak.desiredAssay)) {
+    if (autoCalcEnabled && active.calcMode === "target-assay" && !Number.isFinite(metrics.resolvedSamplePeak.desiredAssay)) {
       issues.push({ level: "warning", text: `${name}: Desired assay is missing, so target peak planning cannot run.` });
     }
-    if (metrics.calculatedAssay === null) {
+    if (autoCalcEnabled && metrics.calculatedAssay === null) {
       issues.push({ level: "warning", text: `${name}: Calculation engine is incomplete because reference area, sample area, or claim is missing.` });
     }
   });
