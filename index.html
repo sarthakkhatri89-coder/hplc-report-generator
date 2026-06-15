@@ -4,10 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HPLC Report Generator</title>
-    <link rel="stylesheet" href="./styles.css?v=20260525c" />
+    <link rel="stylesheet" href="./styles.css?v=20260615b" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   </head>
   <body class="auth-locked">
     <section class="login-overlay" id="loginOverlay">
@@ -45,7 +47,7 @@
           <div>
             <h1>HPLC Report Generator</h1>
             <p class="sub">Build the report once, then generate the lab pages and chromatograms automatically.</p>
-            <p class="build-note">Build 2026.05.25 C</p>
+            <p class="build-note">Build 2026.06.15 B</p>
           </div>
           <div class="app-header-tools">
             <div class="app-pill-row">
@@ -60,7 +62,7 @@
           <section class="section-card control-card">
             <div class="section-head">
               <h2>Workspace</h2>
-              <p>Template, export mode, and validation only.</p>
+              <p>Template, export mode, validation, and bulk workflows.</p>
             </div>
             <div class="form-grid cols-2">
               <label>Template Preset
@@ -154,6 +156,48 @@
             </div>
             <div id="activeList" class="active-list"></div>
           </section>
+
+          <section class="section-card bulk-card">
+            <div class="section-head">
+              <h2>Bulk Generation</h2>
+              <p>Upload one Excel or CSV file with multiple products. The app will generate one PDF per product and package them into a ZIP.</p>
+            </div>
+            <div class="bulk-actions">
+              <button id="downloadBulkTemplateBtn" type="button" class="secondary-btn">Download Bulk Template</button>
+              <label class="file-trigger">
+                <input id="bulkFileInput" type="file" accept=".xlsx,.xls,.csv" hidden />
+                <span>Select Bulk File</span>
+              </label>
+              <button id="clearBulkBtn" type="button" class="secondary-btn">Clear Bulk File</button>
+              <button id="generateBulkBtn" type="button">Generate Bulk ZIP</button>
+            </div>
+            <div class="bulk-status-row">
+              <strong id="bulkStatusHeadline">No bulk file loaded</strong>
+              <span id="bulkStatusText">Template supports up to 6 actives per product.</span>
+            </div>
+            <div id="bulkPreviewCard" class="bulk-preview-card is-empty">
+              <div class="bulk-preview-summary" id="bulkPreviewSummary">Upload a file to see row validation before generation.</div>
+              <div class="bulk-preview-table-wrap">
+                <table class="bulk-preview-table">
+                  <thead>
+                    <tr>
+                      <th>Row</th>
+                      <th>Product</th>
+                      <th>Report No.</th>
+                      <th>Actives</th>
+                      <th>Status</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody id="bulkPreviewBody">
+                    <tr>
+                      <td colspan="6">No rows loaded.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
         </div>
 
         <div class="toolbar">
@@ -214,6 +258,6 @@
       </article>
     </template>
 
-    <script src="./app.js?v=20260525c"></script>
+    <script src="./app.js?v=20260615b"></script>
   </body>
   </html>

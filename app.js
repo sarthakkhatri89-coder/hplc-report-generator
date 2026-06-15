@@ -18,11 +18,22 @@ const loginUsername = document.getElementById("loginUsername");
 const loginPassword = document.getElementById("loginPassword");
 const loginError = document.getElementById("loginError");
 const logoutBtn = document.getElementById("logoutBtn");
+const downloadBulkTemplateBtn = document.getElementById("downloadBulkTemplateBtn");
+const bulkFileInput = document.getElementById("bulkFileInput");
+const clearBulkBtn = document.getElementById("clearBulkBtn");
+const generateBulkBtn = document.getElementById("generateBulkBtn");
+const bulkStatusHeadline = document.getElementById("bulkStatusHeadline");
+const bulkStatusText = document.getElementById("bulkStatusText");
+const bulkPreviewCard = document.getElementById("bulkPreviewCard");
+const bulkPreviewSummary = document.getElementById("bulkPreviewSummary");
+const bulkPreviewBody = document.getElementById("bulkPreviewBody");
 const defaultDocumentTitle = document.title;
 let currentRenderDataSet = [];
+let bulkImportRows = [];
 const AUTH_USERNAME = "ADMINHPLC";
 const AUTH_PASSWORD = "HPLC@2027";
 const AUTH_STORAGE_KEY = "hplc-auth-session-v1";
+const MAX_BULK_ACTIVES = 6;
 const PRESETS = {
   krishna: {
     graphHeader: "SHREE KRISHNA ANALYTICAL SERVICES PVT. LTD.",
@@ -337,6 +348,13 @@ function buildExportFilename() {
   return `${sampleName}_${reportNo}_${dateTag}_${modeTag}.pdf`.replace(/\s+/g, "_");
 }
 
+function buildBulkPdfFilename(data) {
+  const sampleName = (data.sampleName || "HPLC Report").trim().replace(/[\\/:*?"<>|]+/g, " ");
+  const reportNo = (data.reportNo || "NO-REPORT").trim().replace(/[\\/:*?"<>|]+/g, " ");
+  const dateTag = (data.analysisCompletedDate || data.receivedOn || "").replace(/-/g, "") || formatDateFromDate(getGraphDate(data)).replace(/\//g, "");
+  return `${sampleName}_${reportNo}_${dateTag}_full.pdf`.replace(/\s+/g, "_");
+}
+
 function isAuthenticated() {
   return window.sessionStorage.getItem(AUTH_STORAGE_KEY) === "ok";
 }
@@ -371,6 +389,69 @@ function syncCanvasContent(sourcePage, clonedPage) {
   });
 }
 
+function getExportPages(pages, mode) {
+  return mode === "report"
+    ? pages.slice(0, 1)
+    : mode === "graphs"
+    ? pages.filter((page) => page.classList.contains("lab-graph-page"))
+    : pages;
+}
+
+async function renderPagesToPdfBlob(pages, filename = "report.pdf", mode = "full") {
+  const exportPages = getExportPages(pages, mode);
+  if (!exportPages.length) {
+    throw new Error("There are no pages to export.");
+  }
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({
+    unit: "mm",
+    format: "a4",
+    orientation: "portrait",
+    compress: true,
+  });
+  const pdfWidth = 210;
+  const pdfHeight = 297;
+
+  for (let index = 0; index < exportPages.length; index += 1) {
+    const page = exportPages[index];
+    const sandbox = document.createElement("div");
+    sandbox.className = "export-sandbox";
+    const clonedPage = page.cloneNode(true);
+    clonedPage.style.margin = "0";
+    clonedPage.style.boxShadow = "none";
+    clonedPage.style.border = "0";
+    syncCanvasContent(page, clonedPage);
+    sandbox.appendChild(clonedPage);
+    document.body.appendChild(sandbox);
+
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const isReportPage = page.classList.contains("krishna-report-page");
+    const deviceScale = window.devicePixelRatio || 1;
+    const captureScale = Math.min(isReportPage ? 2.2 : 1.8, Math.max(1.35, deviceScale));
+
+    const canvas = await window.html2canvas(clonedPage, {
+      scale: captureScale,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      width: clonedPage.offsetWidth,
+      height: clonedPage.offsetHeight,
+      windowWidth: clonedPage.scrollWidth,
+      windowHeight: clonedPage.scrollHeight,
+      scrollX: 0,
+      scrollY: 0,
+    });
+
+    const imageData = canvas.toDataURL("image/jpeg", 0.92);
+    if (index > 0) pdf.addPage();
+    pdf.addImage(imageData, "JPEG", 0, 0, pdfWidth, pdfHeight, undefined, "FAST");
+    sandbox.remove();
+  }
+
+  return pdf.output("blob");
+}
+
 async function exportCleanPdf() {
   if (!window.html2canvas || !window.jspdf?.jsPDF) {
     window.alert("PDF export tools did not load. Please refresh and try again.");
@@ -382,66 +463,17 @@ async function exportCleanPdf() {
   try {
     const mode = exportModeSelect.value;
     const pages = [...previewRoot.children];
-    const exportPages =
-      mode === "report"
-        ? pages.slice(0, 1)
-        : mode === "graphs"
-        ? pages.filter((page) => page.classList.contains("lab-graph-page"))
-        : pages;
-    if (!exportPages.length) {
-      window.alert("There are no pages to export yet.");
-      return;
-    }
-
     const previousScrollTop = previewRoot.scrollTop;
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({
-      unit: "mm",
-      format: "a4",
-      orientation: "portrait",
-      compress: true,
-    });
-    const pdfWidth = 210;
-    const pdfHeight = 297;
-
-    for (let index = 0; index < exportPages.length; index += 1) {
-      const page = exportPages[index];
-      const sandbox = document.createElement("div");
-      sandbox.className = "export-sandbox";
-      const clonedPage = page.cloneNode(true);
-      clonedPage.style.margin = "0";
-      clonedPage.style.boxShadow = "none";
-      clonedPage.style.border = "0";
-      syncCanvasContent(page, clonedPage);
-      sandbox.appendChild(clonedPage);
-      document.body.appendChild(sandbox);
-
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-
-      const isReportPage = page.classList.contains("krishna-report-page");
-      const deviceScale = window.devicePixelRatio || 1;
-      const captureScale = Math.min(isReportPage ? 2.2 : 1.8, Math.max(1.35, deviceScale));
-
-      const canvas = await window.html2canvas(clonedPage, {
-        scale: captureScale,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        width: clonedPage.offsetWidth,
-        height: clonedPage.offsetHeight,
-        windowWidth: clonedPage.scrollWidth,
-        windowHeight: clonedPage.scrollHeight,
-        scrollX: 0,
-        scrollY: 0,
-      });
-
-      const imageData = canvas.toDataURL("image/jpeg", 0.92);
-      if (index > 0) pdf.addPage();
-      pdf.addImage(imageData, "JPEG", 0, 0, pdfWidth, pdfHeight, undefined, "FAST");
-      sandbox.remove();
-    }
-
+    const blob = await renderPagesToPdfBlob(pages, buildExportFilename(), mode);
     previewRoot.scrollTop = previousScrollTop;
-    pdf.save(buildExportFilename());
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.download = buildExportFilename();
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   } finally {
     printBtn.disabled = false;
     printBtn.textContent = originalLabel;
@@ -493,6 +525,308 @@ function collectFormData() {
     exportMode: exportModeSelect.value,
     includeCalculationSheets: includeCalculationSheetsToggle.checked ? "yes" : "no",
   };
+}
+
+function buildBulkBaseHeaders() {
+  return [
+    "graphHeader",
+    "acquiredBy",
+    "hplcDataRoot",
+    "detectorLabel",
+    "acquiredTime",
+    "sequenceIntervalMin",
+    "reportNo",
+    "sampleName",
+    "submittedBy",
+    "batchNo",
+    "address",
+    "manufacturedBy",
+    "suppliedBy",
+    "mfgLicNo",
+    "refNo",
+    "protocolReference",
+    "descriptionResult",
+    "assayResult",
+    "receivedOn",
+    "refDate",
+    "analysisStartedDate",
+    "analysisCompletedDate",
+    "mfgDate",
+    "expDate",
+    "batchSize",
+    "sampleQty",
+    "packSize",
+    "includeCalculationSheets",
+  ];
+}
+
+function buildBulkHeaders() {
+  const headers = [...buildBulkBaseHeaders()];
+  for (let index = 1; index <= MAX_BULK_ACTIVES; index += 1) {
+    headers.push(
+      `active${index}Name`,
+      `active${index}AssayResult`,
+      `active${index}LabelClaim`,
+      `active${index}Limits`,
+      `active${index}Method`,
+      `active${index}Lambda`,
+      `active${index}SampleFileNo`,
+      `active${index}CalcMode`,
+      `active${index}DesiredAssayPercent`,
+      `active${index}CalcStandardFactor`,
+      `active${index}CalcSampleFactor`,
+      `active${index}CalcPurityPercent`,
+      `active${index}CalcResponseFactor`,
+      `active${index}CalcClaimPercent`,
+      `active${index}UseCalculatedResult`,
+      `active${index}ReferenceRt`,
+      `active${index}ReferenceHeight`,
+      `active${index}ReferenceArea`,
+      `active${index}ReferenceExtraPeaks`,
+      `active${index}SampleRt`,
+      `active${index}SampleHeight`,
+      `active${index}SampleArea`,
+      `active${index}SampleExtraPeaks`
+    );
+  }
+  return headers;
+}
+
+function buildBulkExampleRow() {
+  const data = collectFormData();
+  const row = {};
+  buildBulkBaseHeaders().forEach((header) => {
+    row[header] = data[header] ?? "";
+  });
+  row.includeCalculationSheets = data.includeCalculationSheets !== "no" ? "yes" : "no";
+  for (let index = 0; index < MAX_BULK_ACTIVES; index += 1) {
+    const active = data.actives[index] || {};
+    const slot = index + 1;
+    row[`active${slot}Name`] = active.compositionName || "";
+    row[`active${slot}AssayResult`] = active.compositionResult || "";
+    row[`active${slot}LabelClaim`] = active.labelClaim || "";
+    row[`active${slot}Limits`] = active.limits || "";
+    row[`active${slot}Method`] = active.method || "";
+    row[`active${slot}Lambda`] = active.lambda || "";
+    row[`active${slot}SampleFileNo`] = active.sampleFileNo || "";
+    row[`active${slot}CalcMode`] = active.calcMode || "assay-from-graph";
+    row[`active${slot}DesiredAssayPercent`] = active.desiredAssayPercent || "";
+    row[`active${slot}CalcStandardFactor`] = active.calcStandardFactor || "1";
+    row[`active${slot}CalcSampleFactor`] = active.calcSampleFactor || "1";
+    row[`active${slot}CalcPurityPercent`] = active.calcPurityPercent || "100";
+    row[`active${slot}CalcResponseFactor`] = active.calcResponseFactor || "1";
+    row[`active${slot}CalcClaimPercent`] = active.calcClaimPercent || "";
+    row[`active${slot}UseCalculatedResult`] = active.useCalculatedResult || "yes";
+    row[`active${slot}ReferenceRt`] = active.referenceRt || "";
+    row[`active${slot}ReferenceHeight`] = active.referenceHeight || "";
+    row[`active${slot}ReferenceArea`] = active.referenceArea || "";
+    row[`active${slot}ReferenceExtraPeaks`] = active.referenceExtraPeaks || "";
+    row[`active${slot}SampleRt`] = active.sampleRt || "";
+    row[`active${slot}SampleHeight`] = active.sampleHeight || "";
+    row[`active${slot}SampleArea`] = active.sampleArea || "";
+    row[`active${slot}SampleExtraPeaks`] = active.sampleExtraPeaks || "";
+  }
+  return row;
+}
+
+function normalizeBulkValue(value) {
+  return value == null ? "" : String(value).trim();
+}
+
+function parseYesNo(value, fallback = "yes") {
+  const normalized = normalizeBulkValue(value).toLowerCase();
+  if (["no", "false", "0", "off"].includes(normalized)) return "no";
+  if (["yes", "true", "1", "on"].includes(normalized)) return "yes";
+  return fallback;
+}
+
+function buildDataFromBulkRow(row) {
+  const data = {
+    graphHeader: normalizeBulkValue(row.graphHeader),
+    acquiredBy: normalizeBulkValue(row.acquiredBy),
+    hplcDataRoot: normalizeBulkValue(row.hplcDataRoot),
+    detectorLabel: normalizeBulkValue(row.detectorLabel),
+    acquiredTime: normalizeBulkValue(row.acquiredTime),
+    sequenceIntervalMin: normalizeBulkValue(row.sequenceIntervalMin),
+    reportNo: normalizeBulkValue(row.reportNo),
+    sampleName: normalizeBulkValue(row.sampleName),
+    submittedBy: normalizeBulkValue(row.submittedBy),
+    batchNo: normalizeBulkValue(row.batchNo),
+    address: normalizeBulkValue(row.address),
+    manufacturedBy: normalizeBulkValue(row.manufacturedBy),
+    suppliedBy: normalizeBulkValue(row.suppliedBy),
+    mfgLicNo: normalizeBulkValue(row.mfgLicNo),
+    refNo: normalizeBulkValue(row.refNo),
+    protocolReference: normalizeBulkValue(row.protocolReference),
+    descriptionResult: normalizeBulkValue(row.descriptionResult),
+    assayResult: normalizeBulkValue(row.assayResult),
+    receivedOn: normalizeBulkValue(row.receivedOn),
+    refDate: normalizeBulkValue(row.refDate),
+    analysisStartedDate: normalizeBulkValue(row.analysisStartedDate),
+    analysisCompletedDate: normalizeBulkValue(row.analysisCompletedDate),
+    mfgDate: normalizeBulkValue(row.mfgDate),
+    expDate: normalizeBulkValue(row.expDate),
+    batchSize: normalizeBulkValue(row.batchSize),
+    sampleQty: normalizeBulkValue(row.sampleQty),
+    packSize: normalizeBulkValue(row.packSize),
+    includeCalculationSheets: parseYesNo(row.includeCalculationSheets, includeCalculationSheetsToggle.checked ? "yes" : "no"),
+    preset: presetSelect.value,
+    exportMode: "full",
+    actives: [],
+  };
+
+  for (let index = 1; index <= MAX_BULK_ACTIVES; index += 1) {
+    const active = {
+      compositionName: normalizeBulkValue(row[`active${index}Name`]),
+      compositionResult: normalizeBulkValue(row[`active${index}AssayResult`]),
+      labelClaim: normalizeBulkValue(row[`active${index}LabelClaim`]),
+      limits: normalizeBulkValue(row[`active${index}Limits`]),
+      method: normalizeBulkValue(row[`active${index}Method`]),
+      lambda: normalizeBulkValue(row[`active${index}Lambda`]),
+      sampleFileNo: normalizeBulkValue(row[`active${index}SampleFileNo`]),
+      calcMode: normalizeBulkValue(row[`active${index}CalcMode`]) || "assay-from-graph",
+      desiredAssayPercent: normalizeBulkValue(row[`active${index}DesiredAssayPercent`]),
+      calcStandardFactor: normalizeBulkValue(row[`active${index}CalcStandardFactor`]) || "1",
+      calcSampleFactor: normalizeBulkValue(row[`active${index}CalcSampleFactor`]) || "1",
+      calcPurityPercent: normalizeBulkValue(row[`active${index}CalcPurityPercent`]) || "100",
+      calcResponseFactor: normalizeBulkValue(row[`active${index}CalcResponseFactor`]) || "1",
+      calcClaimPercent: normalizeBulkValue(row[`active${index}CalcClaimPercent`]),
+      useCalculatedResult: parseYesNo(row[`active${index}UseCalculatedResult`], "yes"),
+      referenceRt: normalizeBulkValue(row[`active${index}ReferenceRt`]),
+      referenceHeight: normalizeBulkValue(row[`active${index}ReferenceHeight`]),
+      referenceArea: normalizeBulkValue(row[`active${index}ReferenceArea`]),
+      referenceExtraPeaks: normalizeBulkValue(row[`active${index}ReferenceExtraPeaks`]),
+      sampleRt: normalizeBulkValue(row[`active${index}SampleRt`]),
+      sampleHeight: normalizeBulkValue(row[`active${index}SampleHeight`]),
+      sampleArea: normalizeBulkValue(row[`active${index}SampleArea`]),
+      sampleExtraPeaks: normalizeBulkValue(row[`active${index}SampleExtraPeaks`]),
+    };
+    if (active.compositionName || active.referenceArea || active.sampleArea || active.lambda) {
+      data.actives.push(active);
+    }
+  }
+
+  if (!data.graphHeader) data.graphHeader = form.querySelector('[name="graphHeader"]').value;
+  if (!data.acquiredBy) data.acquiredBy = form.querySelector('[name="acquiredBy"]').value;
+  if (!data.hplcDataRoot) data.hplcDataRoot = form.querySelector('[name="hplcDataRoot"]').value;
+  if (!data.detectorLabel) data.detectorLabel = form.querySelector('[name="detectorLabel"]').value;
+  if (!data.acquiredTime) data.acquiredTime = form.querySelector('[name="acquiredTime"]').value;
+  if (!data.sequenceIntervalMin) data.sequenceIntervalMin = form.querySelector('[name="sequenceIntervalMin"]').value;
+  if (!data.protocolReference) data.protocolReference = form.querySelector('[name="protocolReference"]').value || "In House Specification";
+  if (!data.descriptionResult) data.descriptionResult = form.querySelector('[name="descriptionResult"]').value || "Off white hard mass";
+
+  return data;
+}
+
+function validateBulkData(data) {
+  const issues = validateData(data);
+  if (!data.actives.length) {
+    issues.unshift({ level: "error", text: "At least one active is required." });
+  }
+  return issues;
+}
+
+function summarizeBulkRow(data, rowIndex) {
+  const issues = validateBulkData(data);
+  const errorCount = issues.filter((item) => item.level === "error").length;
+  const warningCount = issues.filter((item) => item.level === "warning").length;
+  const status = errorCount ? "error" : warningCount ? "warn" : "ok";
+  const notes = issues
+    .filter((item) => item.level !== "ok")
+    .slice(0, 3)
+    .map((item) => item.text)
+    .join(" | ");
+  return {
+    rowIndex,
+    data,
+    issues,
+    status,
+    statusLabel: errorCount ? `${errorCount} error${errorCount === 1 ? "" : "s"}` : warningCount ? `${warningCount} warning${warningCount === 1 ? "" : "s"}` : "Ready",
+    notes: notes || "No issues found",
+  };
+}
+
+function renderBulkPreview() {
+  if (!bulkImportRows.length) {
+    bulkPreviewCard.classList.add("is-empty");
+    bulkPreviewSummary.textContent = "Upload a file to see row validation before generation.";
+    bulkPreviewBody.innerHTML = '<tr><td colspan="6">No rows loaded.</td></tr>';
+    bulkStatusHeadline.textContent = "No bulk file loaded";
+    bulkStatusText.textContent = "Template supports up to 6 actives per product.";
+    return;
+  }
+
+  bulkPreviewCard.classList.remove("is-empty");
+  const errorCount = bulkImportRows.filter((row) => row.status === "error").length;
+  const warningCount = bulkImportRows.filter((row) => row.status === "warn").length;
+  bulkStatusHeadline.textContent = `${bulkImportRows.length} product rows loaded`;
+  bulkStatusText.textContent = errorCount
+    ? `${errorCount} rows need fixes before ZIP generation.`
+    : warningCount
+    ? `${warningCount} rows have warnings. Generation is still allowed.`
+    : "All rows are ready for ZIP generation.";
+  bulkPreviewSummary.textContent = `Rows: ${bulkImportRows.length} | Errors: ${errorCount} | Warnings: ${warningCount} | Max actives per product: ${MAX_BULK_ACTIVES}`;
+  bulkPreviewBody.innerHTML = bulkImportRows
+    .map(
+      (row) => `
+        <tr>
+          <td>${row.rowIndex}</td>
+          <td>${escapeHtml(row.data.sampleName || "-")}</td>
+          <td>${escapeHtml(row.data.reportNo || "-")}</td>
+          <td>${row.data.actives.length}</td>
+          <td class="${row.status}">${escapeHtml(row.statusLabel)}</td>
+          <td>${escapeHtml(row.notes)}</td>
+        </tr>
+      `
+    )
+    .join("");
+}
+
+function clearBulkImport() {
+  bulkImportRows = [];
+  bulkFileInput.value = "";
+  renderBulkPreview();
+}
+
+async function handleBulkFileSelection(event) {
+  const [file] = event.target.files || [];
+  if (!file) return;
+  if (!window.XLSX) {
+    window.alert("Spreadsheet tools did not load. Please refresh and try again.");
+    return;
+  }
+
+  bulkStatusHeadline.textContent = "Reading bulk file...";
+  bulkStatusText.textContent = file.name;
+
+  try {
+    const buffer = await file.arrayBuffer();
+    const workbook = window.XLSX.read(buffer, { type: "array", cellDates: true });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = window.XLSX.utils.sheet_to_json(firstSheet, { defval: "", raw: false });
+    bulkImportRows = rows
+      .map((row, index) => summarizeBulkRow(buildDataFromBulkRow(row), index + 2))
+      .filter((entry) => entry.data.sampleName || entry.data.reportNo || entry.data.actives.length);
+    renderBulkPreview();
+  } catch (error) {
+    bulkStatusHeadline.textContent = "Bulk file could not be read";
+    bulkStatusText.textContent = error instanceof Error ? error.message : "Unknown spreadsheet error.";
+    bulkPreviewBody.innerHTML = '<tr><td colspan="6">File parsing failed.</td></tr>';
+  }
+}
+
+function downloadBulkTemplate() {
+  if (!window.XLSX) {
+    window.alert("Spreadsheet tools did not load. Please refresh and try again.");
+    return;
+  }
+
+  const headers = buildBulkHeaders();
+  const exampleRow = buildBulkExampleRow();
+  const worksheet = window.XLSX.utils.json_to_sheet([exampleRow], { header: headers });
+  const workbook = window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(workbook, worksheet, "Bulk Reports");
+  window.XLSX.writeFile(workbook, `HPLC_Bulk_Template_${MAX_BULK_ACTIVES}_Actives.xlsx`);
 }
 
 function extractFirstNumber(value) {
@@ -1740,31 +2074,85 @@ function handleLogout() {
   applyAuthState();
 }
 
-function generatePages() {
-  const data = collectFormData();
+function buildPagesForData(data) {
+  const includeCalculationSheets = data.includeCalculationSheets !== "no";
+  const pages = [buildReportPage(data)];
+  data.actives.forEach((active, activeIndex) => {
+    pages.push(buildGraphPage(data, active, "blank", activeIndex));
+    pages.push(buildGraphPage(data, active, "reference", activeIndex));
+    pages.push(buildGraphPage(data, active, "sample", activeIndex));
+    if (includeCalculationSheets) {
+      pages.push(buildCalculationPage(data, active, activeIndex));
+    }
+  });
+  return pages;
+}
+
+function generatePages(data = collectFormData()) {
   currentRenderDataSet = [data];
   previewRoot.innerHTML = "";
   const includeCalculationSheets = data.includeCalculationSheets !== "no";
   updatePreviewSummary(data.actives.length, includeCalculationSheets);
   refreshActiveCardStates(data);
   updateValidationPanel(data);
-  previewRoot.appendChild(buildReportPage(data));
-  data.actives.forEach((active, activeIndex) => {
-    previewRoot.appendChild(buildGraphPage(data, active, "blank", activeIndex));
-    previewRoot.appendChild(buildGraphPage(data, active, "reference", activeIndex));
-    previewRoot.appendChild(buildGraphPage(data, active, "sample", activeIndex));
-    if (includeCalculationSheets) {
-      previewRoot.appendChild(buildCalculationPage(data, active, activeIndex));
-    }
-  });
+  buildPagesForData(data).forEach((page) => previewRoot.appendChild(page));
 }
 
-generateBtn.addEventListener("click", generatePages);
+async function generateBulkZip() {
+  if (!window.JSZip || !window.XLSX) {
+    window.alert("Bulk tools did not load. Please refresh and try again.");
+    return;
+  }
+  if (!bulkImportRows.length) {
+    window.alert("Load a bulk file before generating ZIP output.");
+    return;
+  }
+  if (bulkImportRows.some((row) => row.status === "error")) {
+    window.alert("Fix bulk rows with errors before generating ZIP output.");
+    return;
+  }
+
+  const originalLabel = generateBulkBtn.textContent;
+  generateBulkBtn.disabled = true;
+  generateBulkBtn.textContent = "Generating ZIP...";
+
+  try {
+    const zip = new window.JSZip();
+    for (let index = 0; index < bulkImportRows.length; index += 1) {
+      const row = bulkImportRows[index];
+      bulkStatusHeadline.textContent = `Rendering ${index + 1} of ${bulkImportRows.length}`;
+      bulkStatusText.textContent = `${row.data.sampleName || "Product"} | ${row.data.reportNo || "No report number"}`;
+      const pages = buildPagesForData(row.data);
+      const pdfBlob = await renderPagesToPdfBlob(pages, buildBulkPdfFilename(row.data), "full");
+      zip.file(buildBulkPdfFilename(row.data), pdfBlob);
+    }
+
+    const zipBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(zipBlob);
+    link.href = url;
+    link.download = `HPLC_Bulk_Reports_${bulkImportRows.length}_Products.zip`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    renderBulkPreview();
+  } finally {
+    generateBulkBtn.disabled = false;
+    generateBulkBtn.textContent = originalLabel;
+  }
+}
+
+generateBtn.addEventListener("click", () => generatePages());
 printBtn.addEventListener("click", exportCleanPdf);
 presetSelect.addEventListener("change", () => applyPreset(presetSelect.value));
-includeCalculationSheetsToggle.addEventListener("change", generatePages);
+includeCalculationSheetsToggle.addEventListener("change", () => generatePages());
 loginForm.addEventListener("submit", handleLogin);
 logoutBtn.addEventListener("click", handleLogout);
+downloadBulkTemplateBtn.addEventListener("click", downloadBulkTemplate);
+bulkFileInput.addEventListener("change", handleBulkFileSelection);
+clearBulkBtn.addEventListener("click", clearBulkImport);
+generateBulkBtn.addEventListener("click", generateBulkZip);
 addActiveBtn.addEventListener("click", () => {
   activeList.appendChild(
     createActiveCard({
@@ -1830,6 +2218,7 @@ activeList.appendChild(
   })
 );
 updateActiveTitles();
+renderBulkPreview();
 applyAuthState();
 if (isAuthenticated()) {
   generatePages();
