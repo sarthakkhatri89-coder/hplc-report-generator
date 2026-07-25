@@ -160,38 +160,80 @@
           <section class="section-card bulk-card">
             <div class="section-head">
               <h2>Bulk Generation</h2>
-              <p>Upload one Excel or CSV file with multiple products. The app will generate one PDF per product and package them into a ZIP.</p>
+              <p>Generate many product PDFs at once with one Excel or CSV file.</p>
+            </div>
+            <div class="bulk-step-grid">
+              <div class="bulk-step">
+                <span class="bulk-step-badge">1</span>
+                <div>
+                  <strong>Download the format</strong>
+                  <p>It has just two sheets: Products and Actives.</p>
+                </div>
+              </div>
+              <div class="bulk-step">
+                <span class="bulk-step-badge">2</span>
+                <div>
+                  <strong>Upload your filled file</strong>
+                  <p>Use the same Report No. on both sheets to link each product.</p>
+                </div>
+              </div>
+              <div class="bulk-step">
+                <span class="bulk-step-badge">3</span>
+                <div>
+                  <strong>Download one ZIP</strong>
+                  <p>You get one PDF per product inside a single ZIP file.</p>
+                </div>
+              </div>
             </div>
             <div class="bulk-actions">
-              <button id="downloadBulkTemplateBtn" type="button" class="secondary-btn">Download Bulk Template</button>
+              <button id="downloadBulkTemplateBtn" type="button" class="secondary-btn">1. Download Template</button>
               <label class="file-trigger">
                 <input id="bulkFileInput" type="file" accept=".xlsx,.xls,.csv" hidden />
-                <span>Select Bulk File</span>
+                <span>2. Upload Bulk File</span>
               </label>
-              <button id="clearBulkBtn" type="button" class="secondary-btn">Clear Bulk File</button>
-              <button id="generateBulkBtn" type="button">Generate Bulk ZIP</button>
+              <button id="clearBulkBtn" type="button" class="secondary-btn">Clear</button>
+              <button id="generateBulkBtn" type="button">3. Generate ZIP</button>
+            </div>
+            <div class="bulk-meta-grid">
+              <div class="bulk-meta-card">
+                <span class="bulk-meta-label">Loaded File</span>
+                <strong id="bulkFileName">No file selected</strong>
+              </div>
+              <div class="bulk-meta-card">
+                <span class="bulk-meta-label">Products</span>
+                <strong id="bulkProductsCount">0</strong>
+              </div>
+              <div class="bulk-meta-card">
+                <span class="bulk-meta-label">Actives Support</span>
+                <strong id="bulkActivesNote">Up to 6 per product</strong>
+              </div>
             </div>
             <div class="bulk-status-row">
               <strong id="bulkStatusHeadline">No bulk file loaded</strong>
               <span id="bulkStatusText">Template supports up to 6 actives per product.</span>
             </div>
             <div id="bulkPreviewCard" class="bulk-preview-card is-empty">
-              <div class="bulk-preview-summary" id="bulkPreviewSummary">Upload a file to see row validation before generation.</div>
+              <div class="bulk-preview-summary">
+                <div class="bulk-preview-summary-copy" id="bulkPreviewSummary">Upload a file to see row validation before generation.</div>
+                <div class="bulk-stat-pills">
+                  <span class="bulk-stat-pill ok">Ready <strong id="bulkReadyCount">0</strong></span>
+                  <span class="bulk-stat-pill warn">Warnings <strong id="bulkWarningCount">0</strong></span>
+                  <span class="bulk-stat-pill error">Errors <strong id="bulkErrorCount">0</strong></span>
+                </div>
+              </div>
               <div class="bulk-preview-table-wrap">
                 <table class="bulk-preview-table">
                   <thead>
                     <tr>
                       <th>Row</th>
                       <th>Product</th>
-                      <th>Report No.</th>
-                      <th>Actives</th>
                       <th>Status</th>
-                      <th>Notes</th>
+                      <th>What to check</th>
                     </tr>
                   </thead>
                   <tbody id="bulkPreviewBody">
                     <tr>
-                      <td colspan="6">No rows loaded.</td>
+                      <td colspan="4">No rows loaded.</td>
                     </tr>
                   </tbody>
                 </table>

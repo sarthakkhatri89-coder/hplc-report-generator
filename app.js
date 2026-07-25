@@ -27,6 +27,12 @@ const bulkStatusText = document.getElementById("bulkStatusText");
 const bulkPreviewCard = document.getElementById("bulkPreviewCard");
 const bulkPreviewSummary = document.getElementById("bulkPreviewSummary");
 const bulkPreviewBody = document.getElementById("bulkPreviewBody");
+const bulkFileName = document.getElementById("bulkFileName");
+const bulkProductsCount = document.getElementById("bulkProductsCount");
+const bulkActivesNote = document.getElementById("bulkActivesNote");
+const bulkReadyCount = document.getElementById("bulkReadyCount");
+const bulkWarningCount = document.getElementById("bulkWarningCount");
+const bulkErrorCount = document.getElementById("bulkErrorCount");
 const defaultDocumentTitle = document.title;
 let currentRenderDataSet = [];
 let bulkImportRows = [];
@@ -527,106 +533,127 @@ function collectFormData() {
   };
 }
 
-function buildBulkBaseHeaders() {
-  return [
-    "graphHeader",
-    "acquiredBy",
-    "hplcDataRoot",
-    "detectorLabel",
-    "acquiredTime",
-    "sequenceIntervalMin",
-    "reportNo",
-    "sampleName",
-    "submittedBy",
-    "batchNo",
-    "address",
-    "manufacturedBy",
-    "suppliedBy",
-    "mfgLicNo",
-    "refNo",
-    "protocolReference",
-    "descriptionResult",
-    "assayResult",
-    "receivedOn",
-    "refDate",
-    "analysisStartedDate",
-    "analysisCompletedDate",
-    "mfgDate",
-    "expDate",
-    "batchSize",
-    "sampleQty",
-    "packSize",
-    "includeCalculationSheets",
-  ];
+const BULK_PRODUCT_HEADERS = [
+  "Report No.",
+  "Product / Sample Name",
+  "Submitted By / Company",
+  "Batch No.",
+  "Received Date (YYYY-MM-DD)",
+  "Mfg Date",
+  "Expiry Date",
+  "Batch Size",
+  "Sample Quantity",
+  "Pack Size",
+  "Analysis Start Date (YYYY-MM-DD)",
+  "Analysis Completed Date (YYYY-MM-DD)",
+  "Reference No.",
+  "Description",
+];
+
+const BULK_ACTIVE_HEADERS = [
+  "Report No.",
+  "Active Ingredient",
+  "Label Claim (% w/w)",
+  "Limits / Specification",
+  "Method",
+  "Lambda (nm)",
+  "Standard RT (min)",
+  "Standard Height (mAU)",
+  "Standard Area",
+  "Test RT (min)",
+  "Test Height (mAU)",
+  "Test Area",
+];
+
+function normalizeBulkHeader(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
 }
 
-function buildBulkHeaders() {
-  const headers = [...buildBulkBaseHeaders()];
-  for (let index = 1; index <= MAX_BULK_ACTIVES; index += 1) {
-    headers.push(
-      `active${index}Name`,
-      `active${index}AssayResult`,
-      `active${index}LabelClaim`,
-      `active${index}Limits`,
-      `active${index}Method`,
-      `active${index}Lambda`,
-      `active${index}SampleFileNo`,
-      `active${index}CalcMode`,
-      `active${index}DesiredAssayPercent`,
-      `active${index}CalcStandardFactor`,
-      `active${index}CalcSampleFactor`,
-      `active${index}CalcPurityPercent`,
-      `active${index}CalcResponseFactor`,
-      `active${index}CalcClaimPercent`,
-      `active${index}UseCalculatedResult`,
-      `active${index}ReferenceRt`,
-      `active${index}ReferenceHeight`,
-      `active${index}ReferenceArea`,
-      `active${index}ReferenceExtraPeaks`,
-      `active${index}SampleRt`,
-      `active${index}SampleHeight`,
-      `active${index}SampleArea`,
-      `active${index}SampleExtraPeaks`
-    );
-  }
-  return headers;
+function getSpreadsheetValue(row, header) {
+  const expected = normalizeBulkHeader(header);
+  const match = Object.entries(row || {}).find(([key]) => normalizeBulkHeader(key) === expected);
+  return normalizeBulkValue(match ? match[1] : "");
 }
 
-function buildBulkExampleRow() {
-  const data = collectFormData();
-  const row = {};
-  buildBulkBaseHeaders().forEach((header) => {
-    row[header] = data[header] ?? "";
+function buildSimpleBulkData(productRow, activeRows) {
+  const formDefaults = collectFormData();
+  const data = {
+    graphHeader: formDefaults.graphHeader,
+    acquiredBy: formDefaults.acquiredBy,
+    hplcDataRoot: formDefaults.hplcDataRoot,
+    detectorLabel: formDefaults.detectorLabel,
+    acquiredTime: formDefaults.acquiredTime,
+    sequenceIntervalMin: formDefaults.sequenceIntervalMin,
+    reportNo: getSpreadsheetValue(productRow, "Report No."),
+    sampleName: getSpreadsheetValue(productRow, "Product / Sample Name"),
+    submittedBy: getSpreadsheetValue(productRow, "Submitted By / Company"),
+    batchNo: getSpreadsheetValue(productRow, "Batch No."),
+    receivedOn: getSpreadsheetValue(productRow, "Received Date (YYYY-MM-DD)"),
+    mfgDate: getSpreadsheetValue(productRow, "Mfg Date"),
+    expDate: getSpreadsheetValue(productRow, "Expiry Date"),
+    batchSize: getSpreadsheetValue(productRow, "Batch Size"),
+    sampleQty: getSpreadsheetValue(productRow, "Sample Quantity"),
+    packSize: getSpreadsheetValue(productRow, "Pack Size"),
+    analysisStartedDate: getSpreadsheetValue(productRow, "Analysis Start Date (YYYY-MM-DD)"),
+    analysisCompletedDate: getSpreadsheetValue(productRow, "Analysis Completed Date (YYYY-MM-DD)"),
+    refNo: getSpreadsheetValue(productRow, "Reference No."),
+    descriptionResult: getSpreadsheetValue(productRow, "Description"),
+    address: formDefaults.address,
+    manufacturedBy: formDefaults.manufacturedBy,
+    suppliedBy: formDefaults.suppliedBy,
+    mfgLicNo: formDefaults.mfgLicNo,
+    protocolReference: formDefaults.protocolReference,
+    assayResult: formDefaults.assayResult,
+    refDate: formDefaults.refDate,
+    includeCalculationSheets: formDefaults.includeCalculationSheets,
+    preset: presetSelect.value,
+    exportMode: "full",
+    actives: activeRows.slice(0, MAX_BULK_ACTIVES).map((row, index) => ({
+      compositionName: getSpreadsheetValue(row, "Active Ingredient"),
+      compositionResult: "",
+      labelClaim: getSpreadsheetValue(row, "Label Claim (% w/w)"),
+      limits: getSpreadsheetValue(row, "Limits / Specification"),
+      method: getSpreadsheetValue(row, "Method"),
+      lambda: getSpreadsheetValue(row, "Lambda (nm)"),
+      sampleFileNo: String(index + 1),
+      calcMode: "assay-from-graph",
+      desiredAssayPercent: "",
+      calcStandardFactor: "1",
+      calcSampleFactor: "1",
+      calcPurityPercent: "100",
+      calcResponseFactor: "1",
+      calcClaimPercent: "",
+      useCalculatedResult: "yes",
+      referenceRt: getSpreadsheetValue(row, "Standard RT (min)"),
+      referenceHeight: getSpreadsheetValue(row, "Standard Height (mAU)"),
+      referenceArea: getSpreadsheetValue(row, "Standard Area"),
+      referenceExtraPeaks: "",
+      sampleRt: getSpreadsheetValue(row, "Test RT (min)"),
+      sampleHeight: getSpreadsheetValue(row, "Test Height (mAU)"),
+      sampleArea: getSpreadsheetValue(row, "Test Area"),
+      sampleExtraPeaks: "",
+    })),
+  };
+  return data;
+}
+
+function buildSimpleBulkImport(productRows, activeRows) {
+  const activeGroups = new Map();
+  activeRows.forEach((row) => {
+    const reportNo = getSpreadsheetValue(row, "Report No.");
+    if (!reportNo) return;
+    const group = activeGroups.get(reportNo) || [];
+    group.push(row);
+    activeGroups.set(reportNo, group);
   });
-  row.includeCalculationSheets = data.includeCalculationSheets !== "no" ? "yes" : "no";
-  for (let index = 0; index < MAX_BULK_ACTIVES; index += 1) {
-    const active = data.actives[index] || {};
-    const slot = index + 1;
-    row[`active${slot}Name`] = active.compositionName || "";
-    row[`active${slot}AssayResult`] = active.compositionResult || "";
-    row[`active${slot}LabelClaim`] = active.labelClaim || "";
-    row[`active${slot}Limits`] = active.limits || "";
-    row[`active${slot}Method`] = active.method || "";
-    row[`active${slot}Lambda`] = active.lambda || "";
-    row[`active${slot}SampleFileNo`] = active.sampleFileNo || "";
-    row[`active${slot}CalcMode`] = active.calcMode || "assay-from-graph";
-    row[`active${slot}DesiredAssayPercent`] = active.desiredAssayPercent || "";
-    row[`active${slot}CalcStandardFactor`] = active.calcStandardFactor || "1";
-    row[`active${slot}CalcSampleFactor`] = active.calcSampleFactor || "1";
-    row[`active${slot}CalcPurityPercent`] = active.calcPurityPercent || "100";
-    row[`active${slot}CalcResponseFactor`] = active.calcResponseFactor || "1";
-    row[`active${slot}CalcClaimPercent`] = active.calcClaimPercent || "";
-    row[`active${slot}UseCalculatedResult`] = active.useCalculatedResult || "yes";
-    row[`active${slot}ReferenceRt`] = active.referenceRt || "";
-    row[`active${slot}ReferenceHeight`] = active.referenceHeight || "";
-    row[`active${slot}ReferenceArea`] = active.referenceArea || "";
-    row[`active${slot}ReferenceExtraPeaks`] = active.referenceExtraPeaks || "";
-    row[`active${slot}SampleRt`] = active.sampleRt || "";
-    row[`active${slot}SampleHeight`] = active.sampleHeight || "";
-    row[`active${slot}SampleArea`] = active.sampleArea || "";
-    row[`active${slot}SampleExtraPeaks`] = active.sampleExtraPeaks || "";
-  }
-  return row;
+  return productRows
+    .map((productRow, index) => {
+      const reportNo = getSpreadsheetValue(productRow, "Report No.");
+      return summarizeBulkRow(buildSimpleBulkData(productRow, activeGroups.get(reportNo) || []), index + 2);
+    })
+    .filter((entry) => entry.data.sampleName || entry.data.reportNo || entry.data.actives.length);
 }
 
 function normalizeBulkValue(value) {
@@ -731,18 +758,17 @@ function summarizeBulkRow(data, rowIndex) {
   const errorCount = issues.filter((item) => item.level === "error").length;
   const warningCount = issues.filter((item) => item.level === "warning").length;
   const status = errorCount ? "error" : warningCount ? "warn" : "ok";
-  const notes = issues
+  const visibleIssues = issues
     .filter((item) => item.level !== "ok")
-    .slice(0, 3)
-    .map((item) => item.text)
-    .join(" | ");
+    .slice(0, 3);
   return {
     rowIndex,
     data,
     issues,
+    visibleIssues,
     status,
     statusLabel: errorCount ? `${errorCount} error${errorCount === 1 ? "" : "s"}` : warningCount ? `${warningCount} warning${warningCount === 1 ? "" : "s"}` : "Ready",
-    notes: notes || "No issues found",
+    notes: visibleIssues.map((item) => item.text).join(" | ") || "No issues found",
   };
 }
 
@@ -750,32 +776,53 @@ function renderBulkPreview() {
   if (!bulkImportRows.length) {
     bulkPreviewCard.classList.add("is-empty");
     bulkPreviewSummary.textContent = "Upload a file to see row validation before generation.";
-    bulkPreviewBody.innerHTML = '<tr><td colspan="6">No rows loaded.</td></tr>';
+    bulkPreviewBody.innerHTML = '<tr><td colspan="4">No rows loaded.</td></tr>';
     bulkStatusHeadline.textContent = "No bulk file loaded";
-    bulkStatusText.textContent = "Template supports up to 6 actives per product.";
+    bulkStatusText.textContent = "Download the template, fill it, then upload it here.";
+    bulkFileName.textContent = "No file selected";
+    bulkProductsCount.textContent = "0";
+    bulkActivesNote.textContent = `Up to ${MAX_BULK_ACTIVES} per product`;
+    bulkReadyCount.textContent = "0";
+    bulkWarningCount.textContent = "0";
+    bulkErrorCount.textContent = "0";
     return;
   }
 
   bulkPreviewCard.classList.remove("is-empty");
   const errorCount = bulkImportRows.filter((row) => row.status === "error").length;
   const warningCount = bulkImportRows.filter((row) => row.status === "warn").length;
+  const readyCount = bulkImportRows.filter((row) => row.status === "ok").length;
   bulkStatusHeadline.textContent = `${bulkImportRows.length} product rows loaded`;
   bulkStatusText.textContent = errorCount
     ? `${errorCount} rows need fixes before ZIP generation.`
     : warningCount
     ? `${warningCount} rows have warnings. Generation is still allowed.`
     : "All rows are ready for ZIP generation.";
-  bulkPreviewSummary.textContent = `Rows: ${bulkImportRows.length} | Errors: ${errorCount} | Warnings: ${warningCount} | Max actives per product: ${MAX_BULK_ACTIVES}`;
+  bulkProductsCount.textContent = String(bulkImportRows.length);
+  bulkActivesNote.textContent = `Up to ${MAX_BULK_ACTIVES} per product`;
+  bulkReadyCount.textContent = String(readyCount);
+  bulkWarningCount.textContent = String(warningCount);
+  bulkErrorCount.textContent = String(errorCount);
+  bulkPreviewSummary.textContent = errorCount
+    ? "Fix the rows marked with errors first. Warnings can still be generated."
+    : warningCount
+    ? "Everything can be generated, but a few rows should be double-checked."
+    : "Everything looks clean. You can generate the ZIP now.";
   bulkPreviewBody.innerHTML = bulkImportRows
     .map(
       (row) => `
         <tr>
           <td>${row.rowIndex}</td>
-          <td>${escapeHtml(row.data.sampleName || "-")}</td>
-          <td>${escapeHtml(row.data.reportNo || "-")}</td>
-          <td>${row.data.actives.length}</td>
+          <td class="bulk-product-cell">
+            <strong>${escapeHtml(row.data.sampleName || "Untitled product")}</strong>
+            <span>Report: ${escapeHtml(row.data.reportNo || "-")} | Actives: ${row.data.actives.length}</span>
+          </td>
           <td class="${row.status}">${escapeHtml(row.statusLabel)}</td>
-          <td>${escapeHtml(row.notes)}</td>
+          <td>${
+            row.visibleIssues.length
+              ? `<ul class="bulk-note-list">${row.visibleIssues.map((item) => `<li>${escapeHtml(item.text)}</li>`).join("")}</ul>`
+              : '<span class="bulk-note-empty">No issues found.</span>'
+          }</td>
         </tr>
       `
     )
@@ -798,20 +845,34 @@ async function handleBulkFileSelection(event) {
 
   bulkStatusHeadline.textContent = "Reading bulk file...";
   bulkStatusText.textContent = file.name;
+  bulkFileName.textContent = file.name;
 
   try {
     const buffer = await file.arrayBuffer();
     const workbook = window.XLSX.read(buffer, { type: "array", cellDates: true });
-    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = window.XLSX.utils.sheet_to_json(firstSheet, { defval: "", raw: false });
-    bulkImportRows = rows
-      .map((row, index) => summarizeBulkRow(buildDataFromBulkRow(row), index + 2))
-      .filter((entry) => entry.data.sampleName || entry.data.reportNo || entry.data.actives.length);
+    const productSheetName = workbook.SheetNames.find((name) => normalizeBulkHeader(name) === "products");
+    const activeSheetName = workbook.SheetNames.find((name) => normalizeBulkHeader(name) === "actives");
+    if (productSheetName && activeSheetName) {
+      const productRows = window.XLSX.utils.sheet_to_json(workbook.Sheets[productSheetName], { defval: "", raw: false });
+      const activeRows = window.XLSX.utils.sheet_to_json(workbook.Sheets[activeSheetName], { defval: "", raw: false });
+      bulkImportRows = buildSimpleBulkImport(productRows, activeRows);
+    } else {
+      // Accept the older one-sheet template so previously prepared files remain usable.
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = window.XLSX.utils.sheet_to_json(firstSheet, { defval: "", raw: false });
+      bulkImportRows = rows
+        .map((row, index) => summarizeBulkRow(buildDataFromBulkRow(row), index + 2))
+        .filter((entry) => entry.data.sampleName || entry.data.reportNo || entry.data.actives.length);
+    }
     renderBulkPreview();
   } catch (error) {
     bulkStatusHeadline.textContent = "Bulk file could not be read";
     bulkStatusText.textContent = error instanceof Error ? error.message : "Unknown spreadsheet error.";
-    bulkPreviewBody.innerHTML = '<tr><td colspan="6">File parsing failed.</td></tr>';
+    bulkProductsCount.textContent = "0";
+    bulkReadyCount.textContent = "0";
+    bulkWarningCount.textContent = "0";
+    bulkErrorCount.textContent = "0";
+    bulkPreviewBody.innerHTML = '<tr><td colspan="4">File parsing failed.</td></tr>';
   }
 }
 
@@ -821,12 +882,27 @@ function downloadBulkTemplate() {
     return;
   }
 
-  const headers = buildBulkHeaders();
-  const exampleRow = buildBulkExampleRow();
-  const worksheet = window.XLSX.utils.json_to_sheet([exampleRow], { header: headers });
+  const productWorksheet = window.XLSX.utils.aoa_to_sheet([BULK_PRODUCT_HEADERS]);
+  const activeWorksheet = window.XLSX.utils.aoa_to_sheet([BULK_ACTIVE_HEADERS]);
+  const guidanceRows = [
+    ["HPLC Bulk Upload - Quick Guide"],
+    ["1. Enter one product per row in the Products sheet."],
+    ["2. Enter one active ingredient per row in the Actives sheet."],
+    ["3. Link both sheets using the exact same Report No."],
+    ["4. A product can have up to 6 active ingredients."],
+    ["5. Use YYYY-MM-DD for received, analysis start, and completed dates."],
+    ["6. Heights are in mAU. Blank chromatograms are generated automatically."],
+    ["7. Keep the column headings unchanged. Leave fields blank only when they are not applicable."],
+  ];
+  const guideWorksheet = window.XLSX.utils.aoa_to_sheet(guidanceRows);
+  productWorksheet["!cols"] = BULK_PRODUCT_HEADERS.map((header) => ({ wch: Math.max(15, header.length + 2) }));
+  activeWorksheet["!cols"] = BULK_ACTIVE_HEADERS.map((header) => ({ wch: Math.max(16, header.length + 2) }));
+  guideWorksheet["!cols"] = [{ wch: 110 }];
   const workbook = window.XLSX.utils.book_new();
-  window.XLSX.utils.book_append_sheet(workbook, worksheet, "Bulk Reports");
-  window.XLSX.writeFile(workbook, `HPLC_Bulk_Template_${MAX_BULK_ACTIVES}_Actives.xlsx`);
+  window.XLSX.utils.book_append_sheet(workbook, productWorksheet, "Products");
+  window.XLSX.utils.book_append_sheet(workbook, activeWorksheet, "Actives");
+  window.XLSX.utils.book_append_sheet(workbook, guideWorksheet, "Read Me");
+  window.XLSX.writeFile(workbook, "HPLC_Bulk_Upload_Template.xlsx");
 }
 
 function extractFirstNumber(value) {
@@ -2114,7 +2190,7 @@ async function generateBulkZip() {
 
   const originalLabel = generateBulkBtn.textContent;
   generateBulkBtn.disabled = true;
-  generateBulkBtn.textContent = "Generating ZIP...";
+  generateBulkBtn.textContent = "Generating...";
 
   try {
     const zip = new window.JSZip();
