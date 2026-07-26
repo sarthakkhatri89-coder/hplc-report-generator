@@ -1684,8 +1684,12 @@ function gaussian(x, mean, sigma, height) {
 }
 
 function toNumber(value, fallback = 0) {
-  const parsed = Number(typeof value === "string" ? value.replace(/,/g, "").trim() : value);
-  return Number.isFinite(parsed) ? parsed : fallback;
+  if (typeof value === "number") return Number.isFinite(value) ? value : fallback;
+  const normalized = String(value ?? "").replace(/,/g, "").trim();
+  const parsed = Number(normalized);
+  if (Number.isFinite(parsed)) return parsed;
+  const numericPart = normalized.match(/-?\d+(?:\.\d+)?/);
+  return numericPart ? Number(numericPart[0]) : fallback;
 }
 
 function formatGraphValue(value, digits = 3) {
