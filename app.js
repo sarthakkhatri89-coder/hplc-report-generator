@@ -651,7 +651,7 @@ function buildSimpleBulkData(productRow, activeRows, labSetup = {}) {
     packSize: getSpreadsheetValue(productRow, "Pack Size"),
     analysisStartedDate: getSpreadsheetValue(productRow, "Analysis Start Date (YYYY-MM-DD)"),
     analysisCompletedDate: getSpreadsheetValue(productRow, "Analysis Completed Date (YYYY-MM-DD)"),
-    includeCalculationSheets: false,
+    includeCalculationSheets: "no",
     preset: presetSelect.value,
     exportMode: "full",
     actives: activeRows.slice(0, MAX_BULK_ACTIVES).map((row, index) => ({
@@ -662,14 +662,14 @@ function buildSimpleBulkData(productRow, activeRows, labSetup = {}) {
       method: getSpreadsheetValue(row, "Method"),
       lambda: getSpreadsheetValue(row, "Lambda (nm)"),
       sampleFileNo: getSpreadsheetValueOrDefault(row, "Test File No.", String(index + 1)),
-      calcMode: "assay-from-graph",
-      desiredAssayPercent: "",
+      calcMode: "target-assay",
+      desiredAssayPercent: getSpreadsheetValue(row, "Assay Result (% w/w)"),
       calcStandardFactor: "1",
       calcSampleFactor: "1",
       calcPurityPercent: "100",
       calcResponseFactor: "1",
       calcClaimPercent: "",
-      useCalculatedResult: false,
+      useCalculatedResult: "yes",
       referenceRt: getSpreadsheetValue(row, "Standard RT (min)"),
       referenceHeight: getSpreadsheetValue(row, "Standard Height (mAU)"),
       referenceArea: getSpreadsheetValue(row, "Standard Area"),
@@ -771,7 +771,7 @@ function buildDataFromBulkRow(row) {
     batchSize: normalizeBulkValue(row.batchSize),
     sampleQty: normalizeBulkValue(row.sampleQty),
     packSize: normalizeBulkValue(row.packSize),
-    includeCalculationSheets: parseYesNo(row.includeCalculationSheets, includeCalculationSheetsToggle.checked ? "yes" : "no"),
+    includeCalculationSheets: "no",
     preset: presetSelect.value,
     exportMode: "full",
     actives: [],
@@ -786,14 +786,14 @@ function buildDataFromBulkRow(row) {
       method: normalizeBulkValue(row[`active${index}Method`]),
       lambda: normalizeBulkValue(row[`active${index}Lambda`]),
       sampleFileNo: normalizeBulkValue(row[`active${index}SampleFileNo`]),
-      calcMode: normalizeBulkValue(row[`active${index}CalcMode`]) || "assay-from-graph",
-      desiredAssayPercent: normalizeBulkValue(row[`active${index}DesiredAssayPercent`]),
+      calcMode: "target-assay",
+      desiredAssayPercent: normalizeBulkValue(row[`active${index}AssayResult`]),
       calcStandardFactor: normalizeBulkValue(row[`active${index}CalcStandardFactor`]) || "1",
       calcSampleFactor: normalizeBulkValue(row[`active${index}CalcSampleFactor`]) || "1",
       calcPurityPercent: normalizeBulkValue(row[`active${index}CalcPurityPercent`]) || "100",
       calcResponseFactor: normalizeBulkValue(row[`active${index}CalcResponseFactor`]) || "1",
       calcClaimPercent: normalizeBulkValue(row[`active${index}CalcClaimPercent`]),
-      useCalculatedResult: parseYesNo(row[`active${index}UseCalculatedResult`], "yes"),
+      useCalculatedResult: "yes",
       referenceRt: normalizeBulkValue(row[`active${index}ReferenceRt`]),
       referenceHeight: normalizeBulkValue(row[`active${index}ReferenceHeight`]),
       referenceArea: normalizeBulkValue(row[`active${index}ReferenceArea`]),
@@ -1143,9 +1143,11 @@ function getResolvedSamplePeak(active) {
   const targetArea =
     stdArea * (desiredAssay / claimPercent) * (sampleFactor / stdFactor) * (purityFactor > 0 ? 1 / purityFactor : 0) * (responseFactor > 0 ? 1 / responseFactor : 0);
   const rtShift = ((seed - 0.5) * 0.06) + 0.012;
-  const targetRt = Math.max(0.001, referenceRt + rtShift);
+  const targetRt = hasMeaningfulValue(active.sampleRt) ? manualSampleRt : Math.max(0.001, referenceRt + rtShift);
   const heightRatio = 0.965 + seed * 0.09;
-  const targetHeight = Math.max(1, Math.round(referenceHeight * heightRatio));
+  const targetHeight = hasMeaningfulValue(active.sampleHeight)
+    ? manualSampleHeight
+    : Math.max(1, Math.round(referenceHeight * heightRatio));
 
   return {
     mode,
@@ -2296,7 +2298,7 @@ function handleLogout() {
 }
 
 function buildPagesForData(data) {
-  const includeCalculationSheets = data.includeCalculationSheets !== "no";
+  const includeCalculationSheets = data.includeCalculationSheets === "yes";
   const pages = [buildReportPage(data)];
   data.actives.forEach((active, activeIndex) => {
     pages.push(buildGraphPage(data, active, "blank", activeIndex));
@@ -2312,7 +2314,7 @@ function buildPagesForData(data) {
 function generatePages(data = collectFormData()) {
   currentRenderDataSet = [data];
   previewRoot.innerHTML = "";
-  const includeCalculationSheets = data.includeCalculationSheets !== "no";
+  const includeCalculationSheets = data.includeCalculationSheets === "yes";
   updatePreviewSummary(data.actives.length, includeCalculationSheets);
   refreshActiveCardStates(data);
   updateValidationPanel(data);
