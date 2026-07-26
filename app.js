@@ -40,6 +40,7 @@ const AUTH_USERNAME = "ADMINHPLC";
 const AUTH_PASSWORD = "HPLC@2027";
 const AUTH_STORAGE_KEY = "hplc-auth-session-v1";
 const MAX_BULK_ACTIVES = 6;
+const MAX_BULK_PRODUCTS = 30;
 const PRESETS = {
   krishna: {
     graphHeader: "SHREE KRISHNA ANALYTICAL SERVICES PVT. LTD.",
@@ -404,6 +405,9 @@ function getExportPages(pages, mode) {
 }
 
 async function renderPagesToPdfBlob(pages, filename = "report.pdf", mode = "full") {
+  if (!window.html2canvas || !window.jspdf?.jsPDF) {
+    throw new Error("PDF export tools did not load. Refresh the page and try again.");
+  }
   const exportPages = getExportPages(pages, mode);
   if (!exportPages.length) {
     throw new Error("There are no pages to export.");
@@ -430,29 +434,31 @@ async function renderPagesToPdfBlob(pages, filename = "report.pdf", mode = "full
     syncCanvasContent(page, clonedPage);
     sandbox.appendChild(clonedPage);
     document.body.appendChild(sandbox);
+    try {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
 
-    await new Promise((resolve) => requestAnimationFrame(resolve));
+      const isReportPage = page.classList.contains("krishna-report-page");
+      const deviceScale = window.devicePixelRatio || 1;
+      const captureScale = Math.min(isReportPage ? 2.2 : 1.8, Math.max(1.35, deviceScale));
 
-    const isReportPage = page.classList.contains("krishna-report-page");
-    const deviceScale = window.devicePixelRatio || 1;
-    const captureScale = Math.min(isReportPage ? 2.2 : 1.8, Math.max(1.35, deviceScale));
+      const canvas = await window.html2canvas(clonedPage, {
+        scale: captureScale,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        width: clonedPage.offsetWidth,
+        height: clonedPage.offsetHeight,
+        windowWidth: clonedPage.scrollWidth,
+        windowHeight: clonedPage.scrollHeight,
+        scrollX: 0,
+        scrollY: 0,
+      });
 
-    const canvas = await window.html2canvas(clonedPage, {
-      scale: captureScale,
-      useCORS: true,
-      backgroundColor: "#ffffff",
-      width: clonedPage.offsetWidth,
-      height: clonedPage.offsetHeight,
-      windowWidth: clonedPage.scrollWidth,
-      windowHeight: clonedPage.scrollHeight,
-      scrollX: 0,
-      scrollY: 0,
-    });
-
-    const imageData = canvas.toDataURL("image/jpeg", 0.92);
-    if (index > 0) pdf.addPage();
-    pdf.addImage(imageData, "JPEG", 0, 0, pdfWidth, pdfHeight, undefined, "FAST");
-    sandbox.remove();
+      const imageData = canvas.toDataURL("image/jpeg", 0.92);
+      if (index > 0) pdf.addPage();
+      pdf.addImage(imageData, "JPEG", 0, 0, pdfWidth, pdfHeight, undefined, "FAST");
+    } finally {
+      sandbox.remove();
+    }
   }
 
   return pdf.output("blob");
@@ -480,6 +486,8 @@ async function exportCleanPdf() {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+  } catch (error) {
+    window.alert(error instanceof Error ? error.message : "PDF export failed. Please refresh and try again.");
   } finally {
     printBtn.disabled = false;
     printBtn.textContent = originalLabel;
@@ -489,9 +497,23 @@ async function exportCleanPdf() {
 
 function formatDate(value) {
   if (!value) return "";
-  const date = new Date(value);
+  const date = parseReportDate(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString("en-GB");
+}
+
+function parseReportDate(value) {
+  if (value instanceof Date) return value;
+  const raw = String(value || "").trim();
+  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) {
+    return new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
+  }
+  const dayFirstMatch = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (dayFirstMatch) {
+    return new Date(Number(dayFirstMatch[3]), Number(dayFirstMatch[2]) - 1, Number(dayFirstMatch[1]));
+  }
+  return new Date(raw);
 }
 
 function formatDateFromDate(date) {
@@ -538,7 +560,16 @@ const BULK_PRODUCT_HEADERS = [
   "Product / Sample Name",
   "Submitted By / Company",
   "Batch No.",
+  "Address",
+  "Manufactured By",
+  "Supplied By",
+  "Mfg. Lic. No.",
+  "Ref. No.",
+  "Protocol Reference",
+  "Description Result",
+  "Assay Result",
   "Received Date (YYYY-MM-DD)",
+  "Ref. Date (YYYY-MM-DD)",
   "Mfg Date",
   "Expiry Date",
   "Batch Size",
@@ -546,17 +577,26 @@ const BULK_PRODUCT_HEADERS = [
   "Pack Size",
   "Analysis Start Date (YYYY-MM-DD)",
   "Analysis Completed Date (YYYY-MM-DD)",
-  "Reference No.",
-  "Description",
+];
+
+const BULK_LAB_SETUP_HEADERS = [
+  "Lab / Graph Header",
+  "Acquired By",
+  "HPLC Data Root",
+  "Detector Label",
+  "Base Acquisition Time (HH:mm:ss)",
+  "Sequence Interval (min)",
 ];
 
 const BULK_ACTIVE_HEADERS = [
   "Report No.",
   "Active Ingredient",
+  "Assay Result (% w/w)",
   "Label Claim (% w/w)",
   "Limits / Specification",
   "Method",
   "Lambda (nm)",
+  "Test File No.",
   "Standard RT (min)",
   "Standard Height (mAU)",
   "Standard Area",
@@ -577,20 +617,33 @@ function getSpreadsheetValue(row, header) {
   return normalizeBulkValue(match ? match[1] : "");
 }
 
-function buildSimpleBulkData(productRow, activeRows) {
+function getSpreadsheetValueOrDefault(row, header, fallback = "") {
+  return getSpreadsheetValue(row, header) || fallback;
+}
+
+function buildSimpleBulkData(productRow, activeRows, labSetup = {}) {
   const formDefaults = collectFormData();
   const data = {
-    graphHeader: formDefaults.graphHeader,
-    acquiredBy: formDefaults.acquiredBy,
-    hplcDataRoot: formDefaults.hplcDataRoot,
-    detectorLabel: formDefaults.detectorLabel,
-    acquiredTime: formDefaults.acquiredTime,
-    sequenceIntervalMin: formDefaults.sequenceIntervalMin,
+    graphHeader: getSpreadsheetValueOrDefault(labSetup, "Lab / Graph Header", formDefaults.graphHeader),
+    acquiredBy: getSpreadsheetValueOrDefault(labSetup, "Acquired By", formDefaults.acquiredBy),
+    hplcDataRoot: getSpreadsheetValueOrDefault(labSetup, "HPLC Data Root", formDefaults.hplcDataRoot),
+    detectorLabel: getSpreadsheetValueOrDefault(labSetup, "Detector Label", formDefaults.detectorLabel),
+    acquiredTime: getSpreadsheetValueOrDefault(labSetup, "Base Acquisition Time (HH:mm:ss)", formDefaults.acquiredTime),
+    sequenceIntervalMin: getSpreadsheetValueOrDefault(labSetup, "Sequence Interval (min)", formDefaults.sequenceIntervalMin),
     reportNo: getSpreadsheetValue(productRow, "Report No."),
     sampleName: getSpreadsheetValue(productRow, "Product / Sample Name"),
     submittedBy: getSpreadsheetValue(productRow, "Submitted By / Company"),
     batchNo: getSpreadsheetValue(productRow, "Batch No."),
+    address: getSpreadsheetValueOrDefault(productRow, "Address", formDefaults.address),
+    manufacturedBy: getSpreadsheetValueOrDefault(productRow, "Manufactured By", formDefaults.manufacturedBy),
+    suppliedBy: getSpreadsheetValueOrDefault(productRow, "Supplied By", formDefaults.suppliedBy),
+    mfgLicNo: getSpreadsheetValueOrDefault(productRow, "Mfg. Lic. No.", formDefaults.mfgLicNo),
+    refNo: getSpreadsheetValue(productRow, "Ref. No."),
+    protocolReference: getSpreadsheetValueOrDefault(productRow, "Protocol Reference", formDefaults.protocolReference),
+    descriptionResult: getSpreadsheetValueOrDefault(productRow, "Description Result", formDefaults.descriptionResult),
+    assayResult: getSpreadsheetValue(productRow, "Assay Result"),
     receivedOn: getSpreadsheetValue(productRow, "Received Date (YYYY-MM-DD)"),
+    refDate: getSpreadsheetValue(productRow, "Ref. Date (YYYY-MM-DD)"),
     mfgDate: getSpreadsheetValue(productRow, "Mfg Date"),
     expDate: getSpreadsheetValue(productRow, "Expiry Date"),
     batchSize: getSpreadsheetValue(productRow, "Batch Size"),
@@ -598,26 +651,17 @@ function buildSimpleBulkData(productRow, activeRows) {
     packSize: getSpreadsheetValue(productRow, "Pack Size"),
     analysisStartedDate: getSpreadsheetValue(productRow, "Analysis Start Date (YYYY-MM-DD)"),
     analysisCompletedDate: getSpreadsheetValue(productRow, "Analysis Completed Date (YYYY-MM-DD)"),
-    refNo: getSpreadsheetValue(productRow, "Reference No."),
-    descriptionResult: getSpreadsheetValue(productRow, "Description"),
-    address: formDefaults.address,
-    manufacturedBy: formDefaults.manufacturedBy,
-    suppliedBy: formDefaults.suppliedBy,
-    mfgLicNo: formDefaults.mfgLicNo,
-    protocolReference: formDefaults.protocolReference,
-    assayResult: formDefaults.assayResult,
-    refDate: formDefaults.refDate,
-    includeCalculationSheets: formDefaults.includeCalculationSheets,
+    includeCalculationSheets: false,
     preset: presetSelect.value,
     exportMode: "full",
     actives: activeRows.slice(0, MAX_BULK_ACTIVES).map((row, index) => ({
       compositionName: getSpreadsheetValue(row, "Active Ingredient"),
-      compositionResult: "",
+      compositionResult: getSpreadsheetValue(row, "Assay Result (% w/w)"),
       labelClaim: getSpreadsheetValue(row, "Label Claim (% w/w)"),
       limits: getSpreadsheetValue(row, "Limits / Specification"),
       method: getSpreadsheetValue(row, "Method"),
       lambda: getSpreadsheetValue(row, "Lambda (nm)"),
-      sampleFileNo: String(index + 1),
+      sampleFileNo: getSpreadsheetValueOrDefault(row, "Test File No.", String(index + 1)),
       calcMode: "assay-from-graph",
       desiredAssayPercent: "",
       calcStandardFactor: "1",
@@ -625,7 +669,7 @@ function buildSimpleBulkData(productRow, activeRows) {
       calcPurityPercent: "100",
       calcResponseFactor: "1",
       calcClaimPercent: "",
-      useCalculatedResult: "yes",
+      useCalculatedResult: false,
       referenceRt: getSpreadsheetValue(row, "Standard RT (min)"),
       referenceHeight: getSpreadsheetValue(row, "Standard Height (mAU)"),
       referenceArea: getSpreadsheetValue(row, "Standard Area"),
@@ -639,8 +683,16 @@ function buildSimpleBulkData(productRow, activeRows) {
   return data;
 }
 
-function buildSimpleBulkImport(productRows, activeRows) {
+function buildSimpleBulkImport(productRows, activeRows, labSetup = {}) {
   const activeGroups = new Map();
+  const productReportNumbers = new Set(
+    productRows.map((row) => getSpreadsheetValue(row, "Report No.")).filter(Boolean)
+  );
+  const reportNumberCounts = new Map();
+  productRows.forEach((row) => {
+    const reportNo = getSpreadsheetValue(row, "Report No.");
+    if (reportNo) reportNumberCounts.set(reportNo, (reportNumberCounts.get(reportNo) || 0) + 1);
+  });
   activeRows.forEach((row) => {
     const reportNo = getSpreadsheetValue(row, "Report No.");
     if (!reportNo) return;
@@ -648,12 +700,35 @@ function buildSimpleBulkImport(productRows, activeRows) {
     group.push(row);
     activeGroups.set(reportNo, group);
   });
-  return productRows
+  const productEntries = productRows
     .map((productRow, index) => {
       const reportNo = getSpreadsheetValue(productRow, "Report No.");
-      return summarizeBulkRow(buildSimpleBulkData(productRow, activeGroups.get(reportNo) || []), index + 2);
+      const activeCount = (activeGroups.get(reportNo) || []).length;
+      const importIssues = [];
+      if (reportNo && reportNumberCounts.get(reportNo) > 1) {
+        importIssues.push({ level: "error", text: "Report No. is duplicated in the Products sheet. Each product needs a unique Report No." });
+      }
+      if (activeCount > MAX_BULK_ACTIVES) {
+        importIssues.push({ level: "error", text: `This product has ${activeCount} actives. The maximum is ${MAX_BULK_ACTIVES}.` });
+      }
+      return summarizeBulkRow(buildSimpleBulkData(productRow, activeGroups.get(reportNo) || [], labSetup), index + 2, importIssues);
     })
     .filter((entry) => entry.data.sampleName || entry.data.reportNo || entry.data.actives.length);
+  const unlinkedActiveEntries = activeRows
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => {
+      const reportNo = getSpreadsheetValue(row, "Report No.");
+      const hasValues = Object.values(row).some((value) => normalizeBulkValue(value));
+      return hasValues && (!reportNo || !productReportNumbers.has(reportNo));
+    })
+    .map(({ row, index }) => {
+      const reportNo = getSpreadsheetValue(row, "Report No.");
+      const message = reportNo
+        ? "This active has no matching product row in the Products sheet."
+        : "This active row needs a Report No. so it can be linked to a product.";
+      return createBulkIssueEntry(index + 2, reportNo, message);
+    });
+  return [...productEntries, ...unlinkedActiveEntries];
 }
 
 function normalizeBulkValue(value) {
@@ -753,8 +828,8 @@ function validateBulkData(data) {
   return issues;
 }
 
-function summarizeBulkRow(data, rowIndex) {
-  const issues = validateBulkData(data);
+function summarizeBulkRow(data, rowIndex, importIssues = []) {
+  const issues = [...importIssues, ...validateBulkData(data)];
   const errorCount = issues.filter((item) => item.level === "error").length;
   const warningCount = issues.filter((item) => item.level === "warning").length;
   const status = errorCount ? "error" : warningCount ? "warn" : "ok";
@@ -770,6 +845,42 @@ function summarizeBulkRow(data, rowIndex) {
     statusLabel: errorCount ? `${errorCount} error${errorCount === 1 ? "" : "s"}` : warningCount ? `${warningCount} warning${warningCount === 1 ? "" : "s"}` : "Ready",
     notes: visibleIssues.map((item) => item.text).join(" | ") || "No issues found",
   };
+}
+
+function createBulkIssueEntry(rowIndex, reportNo, message) {
+  const issues = [{ level: "error", text: message }];
+  return {
+    rowIndex,
+    data: { sampleName: "Unlinked active row", reportNo, actives: [] },
+    issues,
+    visibleIssues: issues,
+    status: "error",
+    statusLabel: "1 error",
+    notes: message,
+  };
+}
+
+function validateBulkImportRows(entries) {
+  const filenames = new Map();
+  entries.forEach((entry) => {
+    if (entry.status === "error") return;
+    const filename = buildBulkPdfFilename(entry.data).toLowerCase();
+    const matchingRows = filenames.get(filename) || [];
+    matchingRows.push(entry);
+    filenames.set(filename, matchingRows);
+  });
+  filenames.forEach((entriesWithSameName) => {
+    if (entriesWithSameName.length < 2) return;
+    entriesWithSameName.forEach((entry) => {
+      const issue = { level: "error", text: "This PDF filename is repeated. Use a unique Report No. or product name." };
+      entry.issues.unshift(issue);
+      entry.visibleIssues = [issue, ...entry.visibleIssues].slice(0, 3);
+      entry.status = "error";
+      entry.statusLabel = `${entry.issues.filter((item) => item.level === "error").length} errors`;
+      entry.notes = entry.visibleIssues.map((item) => item.text).join(" | ");
+    });
+  });
+  return entries;
 }
 
 function renderBulkPreview() {
@@ -842,6 +953,11 @@ async function handleBulkFileSelection(event) {
     window.alert("Spreadsheet tools did not load. Please refresh and try again.");
     return;
   }
+  if (file.size > 5 * 1024 * 1024) {
+    window.alert("This Excel file is larger than 5 MB. Split it into smaller batches and try again.");
+    bulkFileInput.value = "";
+    return;
+  }
 
   bulkStatusHeadline.textContent = "Reading bulk file...";
   bulkStatusText.textContent = file.name;
@@ -852,10 +968,20 @@ async function handleBulkFileSelection(event) {
     const workbook = window.XLSX.read(buffer, { type: "array", cellDates: true });
     const productSheetName = workbook.SheetNames.find((name) => normalizeBulkHeader(name) === "products");
     const activeSheetName = workbook.SheetNames.find((name) => normalizeBulkHeader(name) === "actives");
+    const labSetupSheetName = workbook.SheetNames.find((name) => normalizeBulkHeader(name) === "labsetup");
+    if ((productSheetName || activeSheetName) && !(productSheetName && activeSheetName)) {
+      throw new Error("The simple template needs both a Products sheet and an Actives sheet.");
+    }
     if (productSheetName && activeSheetName) {
       const productRows = window.XLSX.utils.sheet_to_json(workbook.Sheets[productSheetName], { defval: "", raw: false });
       const activeRows = window.XLSX.utils.sheet_to_json(workbook.Sheets[activeSheetName], { defval: "", raw: false });
-      bulkImportRows = buildSimpleBulkImport(productRows, activeRows);
+      const labSetupRows = labSetupSheetName
+        ? window.XLSX.utils.sheet_to_json(workbook.Sheets[labSetupSheetName], { defval: "", raw: false })
+        : [];
+      if (productRows.length > MAX_BULK_PRODUCTS) {
+        throw new Error(`This file has ${productRows.length} products. Upload up to ${MAX_BULK_PRODUCTS} products at a time.`);
+      }
+      bulkImportRows = buildSimpleBulkImport(productRows, activeRows, labSetupRows[0] || {});
     } else {
       // Accept the older one-sheet template so previously prepared files remain usable.
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -864,6 +990,7 @@ async function handleBulkFileSelection(event) {
         .map((row, index) => summarizeBulkRow(buildDataFromBulkRow(row), index + 2))
         .filter((entry) => entry.data.sampleName || entry.data.reportNo || entry.data.actives.length);
     }
+    bulkImportRows = validateBulkImportRows(bulkImportRows);
     renderBulkPreview();
   } catch (error) {
     bulkStatusHeadline.textContent = "Bulk file could not be read";
@@ -872,6 +999,7 @@ async function handleBulkFileSelection(event) {
     bulkReadyCount.textContent = "0";
     bulkWarningCount.textContent = "0";
     bulkErrorCount.textContent = "0";
+    bulkPreviewCard.classList.remove("is-empty");
     bulkPreviewBody.innerHTML = '<tr><td colspan="4">File parsing failed.</td></tr>';
   }
 }
@@ -882,23 +1010,40 @@ function downloadBulkTemplate() {
     return;
   }
 
+  const formDefaults = collectFormData();
+  const labSetupRow = [
+    BULK_LAB_SETUP_HEADERS,
+    [
+      formDefaults.graphHeader || "",
+      formDefaults.acquiredBy || "",
+      formDefaults.hplcDataRoot || "",
+      formDefaults.detectorLabel || "",
+      formDefaults.acquiredTime || "",
+      formDefaults.sequenceIntervalMin || "",
+    ],
+  ];
+  const labSetupWorksheet = window.XLSX.utils.aoa_to_sheet(labSetupRow);
   const productWorksheet = window.XLSX.utils.aoa_to_sheet([BULK_PRODUCT_HEADERS]);
   const activeWorksheet = window.XLSX.utils.aoa_to_sheet([BULK_ACTIVE_HEADERS]);
   const guidanceRows = [
     ["HPLC Bulk Upload - Quick Guide"],
-    ["1. Enter one product per row in the Products sheet."],
-    ["2. Enter one active ingredient per row in the Actives sheet."],
-    ["3. Link both sheets using the exact same Report No."],
-    ["4. A product can have up to 6 active ingredients."],
-    ["5. Use YYYY-MM-DD for received, analysis start, and completed dates."],
-    ["6. Heights are in mAU. Blank chromatograms are generated automatically."],
-    ["7. Keep the column headings unchanged. Leave fields blank only when they are not applicable."],
+    ["1. Lab Setup holds the shared graph settings and already contains the current app defaults."],
+    ["2. Enter one product per row in the Products sheet."],
+    ["3. Enter one active ingredient per row in the Actives sheet."],
+    ["4. Link Products and Actives using the exact same Report No."],
+    ["5. A product can have up to 6 active ingredients."],
+    [`6. Upload up to ${MAX_BULK_PRODUCTS} products at a time.`],
+    ["7. Use YYYY-MM-DD for received, reference, analysis start, and completed dates."],
+    ["8. Heights are in mAU. Blank chromatograms are generated automatically."],
+    ["9. Keep the column headings unchanged. Leave optional fields blank only when they are not applicable."],
   ];
   const guideWorksheet = window.XLSX.utils.aoa_to_sheet(guidanceRows);
+  labSetupWorksheet["!cols"] = BULK_LAB_SETUP_HEADERS.map((header) => ({ wch: Math.max(18, header.length + 2) }));
   productWorksheet["!cols"] = BULK_PRODUCT_HEADERS.map((header) => ({ wch: Math.max(15, header.length + 2) }));
   activeWorksheet["!cols"] = BULK_ACTIVE_HEADERS.map((header) => ({ wch: Math.max(16, header.length + 2) }));
   guideWorksheet["!cols"] = [{ wch: 110 }];
   const workbook = window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(workbook, labSetupWorksheet, "Lab Setup");
   window.XLSX.utils.book_append_sheet(workbook, productWorksheet, "Products");
   window.XLSX.utils.book_append_sheet(workbook, activeWorksheet, "Actives");
   window.XLSX.utils.book_append_sheet(workbook, guideWorksheet, "Read Me");
@@ -1118,9 +1263,9 @@ function validateData(data) {
   requiredFields.forEach(([label, value]) => {
     if (!String(value || "").trim()) issues.push({ level: "error", text: `${label} is required.` });
   });
-  const received = data.receivedOn ? new Date(data.receivedOn) : null;
-  const started = data.analysisStartedDate ? new Date(data.analysisStartedDate) : null;
-  const completed = data.analysisCompletedDate ? new Date(data.analysisCompletedDate) : null;
+  const received = data.receivedOn ? parseReportDate(data.receivedOn) : null;
+  const started = data.analysisStartedDate ? parseReportDate(data.analysisStartedDate) : null;
+  const completed = data.analysisCompletedDate ? parseReportDate(data.analysisCompletedDate) : null;
   if (received && started && started < received) issues.push({ level: "error", text: "Analysis start date is before sample received date." });
   if (started && completed && completed < started) issues.push({ level: "error", text: "Analysis completed date is before analysis start date." });
 
@@ -1647,7 +1792,7 @@ function formatDayFolder(date) {
 
 function getGraphDate(data) {
   const raw = data.analysisCompletedDate || data.refDate || data.receivedOn;
-  const parsed = raw ? new Date(raw) : null;
+  const parsed = raw ? parseReportDate(raw) : null;
   return parsed && !Number.isNaN(parsed.getTime()) ? parsed : new Date();
 }
 
@@ -2213,6 +2358,10 @@ async function generateBulkZip() {
     link.remove();
     URL.revokeObjectURL(url);
     renderBulkPreview();
+  } catch (error) {
+    bulkStatusHeadline.textContent = "Bulk ZIP could not be created";
+    bulkStatusText.textContent = error instanceof Error ? error.message : "Please refresh the page and try again.";
+    window.alert(bulkStatusText.textContent);
   } finally {
     generateBulkBtn.disabled = false;
     generateBulkBtn.textContent = originalLabel;
