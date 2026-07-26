@@ -1051,7 +1051,7 @@ function downloadBulkTemplate() {
 }
 
 function extractFirstNumber(value) {
-  const match = String(value || "").match(/-?\d+(\.\d+)?/);
+  const match = String(value || "").replace(/,/g, "").match(/-?\d+(\.\d+)?/);
   return match ? Number(match[0]) : null;
 }
 
@@ -1684,7 +1684,7 @@ function gaussian(x, mean, sigma, height) {
 }
 
 function toNumber(value, fallback = 0) {
-  const parsed = Number(value);
+  const parsed = Number(typeof value === "string" ? value.replace(/,/g, "").trim() : value);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
